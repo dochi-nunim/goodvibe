@@ -13,6 +13,9 @@
 <meta name="apple-mobile-web-app-title" content="굿바이브">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <style>
 :root{
   --bg:#fbf3e0;--paper:#fff;--ink:#1c1a17;--text:#1c1a17;--muted:#7a7266;--muted2:#b9b1a2;--line:#e6dcc4;
@@ -133,6 +136,10 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .popmenu button{display:block;width:100%;background:var(--paper);border:var(--bw) solid var(--ink);box-shadow:var(--sh2);border-radius:12px;padding:13px;font-size:16px;font-weight:800;margin-bottom:12px}
 .popmenu button:active{transform:translate(2px,2px);box-shadow:none}
 .popmenu button:last-child{margin-bottom:4px}
+.popmenu .acct{padding:2px 6px 10px;text-align:center;line-height:1.4}
+.popmenu .acct b{display:block;font-size:15px}
+.popmenu .acct small{color:var(--muted);font-size:12px}
+.popmenu button.sub{background:var(--bg);font-size:14px;padding:10px;margin-bottom:16px}
 
 /* bottom sheet */
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:22;background:var(--bg);border-top:var(--bw) solid var(--ink);border-radius:24px 24px 0 0;max-width:520px;margin:0 auto;
@@ -192,6 +199,8 @@ button{background:none;border:0;padding:0;cursor:pointer}
 <div id="app"></div>
 <script>
 /* ========== 저장소 ========== */
+let fbUser=null,fbDb=null,fbState="idle",unsubSnap=null,pushTimer=null;
+function schedulePush(){if(!fbUser||!fbDb)return;clearTimeout(pushTimer);pushTimer=setTimeout(pushNow,600);}
 const KEY='dayplanner.v1';
 const PALETTE=["#ffd93d","#8ee3c8","#ffb3d1","#c9b6ff","#ffc09f","#d4f37a","#9fd3ff","#ff8c82","#7fe0e6","#ffb347","#f0e6c8","#ffffff"];
 const OLD_COLORS={"#ff5a5f":"#ffd93d","#ff9f1c":"#8ee3c8","#b455f5":"#ffb3d1","#ffb3c6":"#c9b6ff","#f5c518":"#ffc09f","#8bc34a":"#d4f37a","#4dd0e1":"#9fd3ff","#2fb37b":"#8ee3c8","#2f7cf6":"#9fd3ff","#7b61ff":"#c9b6ff","#ff7ab6":"#ffb3d1","#8d6e63":"#ffb347","#607d8b":"#f0e6c8","#111111":"#ffffff"};
@@ -211,7 +220,7 @@ if(!db){db=defaultDB();save();}
 for(const k of ['tasks','routines','categories','reminders'])db[k]=db[k]||[];
 for(const k of ['routineDone','routineSkip','dayOrder','notified','settings'])db[k]=db[k]||{};
 db.categories.forEach(c=>{if(OLD_COLORS[c.color])c.color=OLD_COLORS[c.color];});
-function save(){localStorage.setItem(KEY,JSON.stringify(db));}
+function save(){db.updatedAt=Date.now();localStorage.setItem(KEY,JSON.stringify(db));schedulePush();}
 
 /* ========== 날짜 도우미 ========== */
 const pad=n=>String(n).padStart(2,'0');
@@ -394,7 +403,10 @@ function renderBackup(){
 }
 
 function renderMenu(){
-  return `<div class="dim" data-act="closemenu"></div><div class="popmenu">
+  const acct=!fbOk()?'':fbUser
+    ?`<div class="acct"><b>${esc(fbUser.displayName||fbUser.email)}</b><small>${fbState==="syncing"?"동기화 중…":"다른 기기와 연동 중"}</small></div><button data-act="logout" class="sub">로그아웃</button>`
+    :`<div class="acct"><small>로그인하면 폰·컴퓨터가 서로 연동돼요</small></div><button data-act="login">구글로 로그인</button>`;
+  return `<div class="dim" data-act="closemenu"></div><div class="popmenu">${acct}
    <button data-act="go" data-view="addcat">카테고리 등록</button>
    <button data-act="go" data-view="categories">카테고리 관리</button>
    <button data-act="go" data-view="routines">루틴 관리</button>
@@ -662,6 +674,8 @@ app.addEventListener('click',e=>{
     case 'askperm':ensurePermission(true);break;
     case 'testnoti':notify('굿바이브','알림이 잘 와요 👍','test');break;
 
+    case 'login':state.menu=false;render();login();break;
+    case 'logout':if(confirm('로그아웃할까요? 이 기기의 데이터는 그대로 남아요.')){logout();state.menu=false;render();}break;
     case 'closesheet':closeSheet();break;
     case 'copybk':navigator.clipboard.writeText($('bk').value).then(()=>toast('복사했어요')).catch(()=>{$('bk').select();toast('길게 눌러 복사해 주세요');});break;
     case 'dlbk':{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(db)],{type:'application/json'}));a.download=`dayplanner-${today()}.json`;a.click();break;}
@@ -675,6 +689,67 @@ app.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&e.target.classList.contains('bigname')){e.preventDefault();const b=document.querySelector('.sheet .btn:not(.ghost):not(.danger)');b&&b.click();}
   if(e.key==='Escape'&&state.sheet)closeSheet();
 });
+
+/* ========== 기기 연동 (Firebase) ========== */
+const FB_CONFIG={apiKey:"AIzaSyAN1VtjzOLtJrN5upvZFZVpO9BTNr9FApo",authDomain:"goodvibe-67608.firebaseapp.com",projectId:"goodvibe-67608",storageBucket:"goodvibe-67608.firebasestorage.app",messagingSenderId:"413736339032",appId:"1:413736339032:web:8b9b211df23c08e1cdec2d"};
+const fbOk=()=>typeof firebase!=="undefined"&&!!fbDb;
+function initFirebase(){
+  if(typeof firebase==="undefined")return;
+  try{
+    firebase.initializeApp(FB_CONFIG);
+    fbDb=firebase.firestore();
+    fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{});
+    firebase.auth().getRedirectResult().catch(e=>toast("로그인 실패: "+e.message,4000));
+    firebase.auth().onAuthStateChanged(u=>{fbUser=u;if(u)startSync();else stopSync();render();});
+  }catch(e){console.warn("firebase init",e);}
+}
+function login(){
+  const p=new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(p).catch(e=>{
+    if(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment")firebase.auth().signInWithRedirect(p);
+    else if(e.code!=="auth/popup-closed-by-user"&&e.code!=="auth/cancelled-popup-request")toast("로그인 실패: "+e.message,4000);
+  });
+}
+function logout(){stopSync();firebase.auth().signOut();}
+function userRef(){return fbDb.collection("users").doc(fbUser.uid);}
+function clean(o){return JSON.parse(JSON.stringify(o));}
+// 처음 로그인한 기기: 서버 데이터와 이 기기 데이터를 합친다 (id 기준, 같은 이름 카테고리는 하나로)
+function mergeDb(r,l){
+  const out=Object.assign({},l,r);
+  const catMap={};
+  out.categories=(r.categories||[]).slice();
+  (l.categories||[]).forEach(c=>{
+    const same=out.categories.find(x=>x.id===c.id)||out.categories.find(x=>x.name===c.name);
+    if(same)catMap[c.id]=same.id;else out.categories.push(c);
+  });
+  const union=(a,b)=>{const ids=new Set((a||[]).map(x=>x.id));return (a||[]).concat((b||[]).filter(x=>!ids.has(x.id)).map(x=>Object.assign({},x,{catId:catMap[x.catId]||x.catId})));};
+  out.tasks=union(r.tasks,l.tasks);out.routines=union(r.routines,l.routines);
+  const ids=new Set((r.reminders||[]).map(x=>x.id));out.reminders=(r.reminders||[]).concat((l.reminders||[]).filter(x=>!ids.has(x.id)));
+  for(const k of ["routineDone","routineSkip","dayOrder","notified","settings"])out[k]=Object.assign({},l[k]||{},r[k]||{});
+  return out;
+}
+async function startSync(){
+  fbState="syncing";render();
+  const ref=userRef();const mergedKey="dayplanner.merged."+fbUser.uid;
+  try{
+    const snap=await ref.get();
+    if(!snap.exists){await pushNow();}
+    else if(!localStorage.getItem(mergedKey)){db=mergeDb(snap.data().db||{},db);save();await pushNow();}
+    localStorage.setItem(mergedKey,"1");
+  }catch(e){console.warn("first sync",e);}
+  unsubSnap=ref.onSnapshot(s=>{
+    if(!s.exists||s.metadata.hasPendingWrites)return;
+    const d=s.data();
+    if(d.updatedAt&&d.updatedAt>(db.updatedAt||0)){db=d.db;localStorage.setItem(KEY,JSON.stringify(db));render();}
+  });
+  fbState="on";render();toast("기기 연동이 켜졌어요");
+}
+function stopSync(){if(unsubSnap){unsubSnap();unsubSnap=null;}fbState="idle";}
+function pushNow(){
+  if(!fbUser||!fbDb)return Promise.resolve();
+  return userRef().set({db:clean(db),updatedAt:db.updatedAt||Date.now(),email:fbUser.email||""}).catch(e=>toast("동기화 실패: "+e.message,4000));
+}
+initFirebase();
 
 /* ========== 알림 ========== */
 let swReg=null;

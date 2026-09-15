@@ -1,4 +1,4 @@
-const CACHE = 'dayplanner-v1';
+const CACHE = 'dayplanner-v2';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-180.png'];
 
 self.addEventListener('install', e => {
