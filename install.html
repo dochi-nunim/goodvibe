@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>굿바이브 설치 안내</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{--bg:#fbf3e0;--paper:#fff;--ink:#1c1a17;--muted:#7a7266;--yellow:#ffd93d;--mint:#8ee3c8;--pink:#ffb3d1;--coral:#ff6b6b;--sky:#9fd3ff;
+  --bw:2.5px;--sh:3px 3px 0 var(--ink);--display:"Jua","Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;line-height:1.5}
+.wrap{max-width:900px;margin:0 auto;padding:28px 18px 80px}
+h1{font-family:var(--display);font-weight:400;font-size:38px;margin:0;text-align:center;letter-spacing:1px}
+.sub{text-align:center;color:var(--muted);margin:6px 0 26px;font-size:15px}
+h2{font-family:var(--display);font-weight:400;font-size:26px;margin:0;display:inline-flex;align-items:center;gap:10px;padding:8px 18px;border:var(--bw) solid var(--ink);border-radius:14px;box-shadow:var(--sh);transform:rotate(-1.2deg)}
+h2 .ic{width:30px;height:30px;border-radius:8px;background:var(--ink);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:16px;font-family:system-ui}
+section{margin-top:44px}
+.intro{margin:14px 0 0;color:#4a443b;font-size:15px}
+
+/* 주소 카드 */
+.addr{margin:8px auto 0;max-width:640px;background:var(--paper);border:var(--bw) solid var(--ink);border-radius:18px;box-shadow:var(--sh);padding:18px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.addr .qr{flex:none;width:132px;height:132px;padding:6px;border:var(--bw) solid var(--ink);border-radius:12px;background:#fff}
+.addr .qr img,.addr .qr canvas{width:100%!important;height:100%!important;display:block}
+.addr .txt{flex:1;min-width:220px}
+.addr .lab{font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.5px}
+.addr .url{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:17px;font-weight:700;word-break:break-all;margin:4px 0 10px}
+.addr button{font:inherit;font-weight:800;font-size:14px;background:var(--yellow);border:var(--bw) solid var(--ink);border-radius:10px;padding:8px 14px;box-shadow:2px 2px 0 var(--ink);cursor:pointer}
+.addr button:active{transform:translate(2px,2px);box-shadow:none}
+.addr .hint{font-size:12px;color:var(--muted);margin-top:8px}
+
+/* 단계 카드 */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px;margin-top:22px}
+.step{background:var(--paper);border:var(--bw) solid var(--ink);border-radius:18px;box-shadow:var(--sh);padding:14px 12px 16px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.step .n{align-self:flex-start;width:32px;height:32px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:18px}
+.step p{margin:0;font-size:14.5px;text-align:center;font-weight:600}
+.step p small{display:block;font-weight:400;color:var(--muted);font-size:12.5px;margin-top:4px}
+.step p b{background:var(--yellow);padding:0 4px;border-radius:4px}
+
+/* 폰 그림 */
+.phone{width:170px;height:330px;border:var(--bw) solid var(--ink);border-radius:26px;background:#f7f7f9;position:relative;overflow:hidden;flex:none}
+.phone .notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:60px;height:14px;border-radius:8px;background:var(--ink)}
+.phone .pill{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:8px;height:8px;border-radius:50%;background:var(--ink)}
+.phone .urlbar{position:absolute;left:12px;right:12px;height:28px;border-radius:9px;background:#fff;border:1.5px solid #d8d3c6;display:flex;align-items:center;padding:0 8px;font-size:9px;color:#555;gap:5px;overflow:hidden;white-space:nowrap}
+.phone .urlbar.top{top:32px}.phone .urlbar.bottom{bottom:44px}
+.phone .urlbar i{font-style:normal;font-size:9px;color:#888}
+.phone .urlbar .dots{margin-left:auto;font-weight:900;color:#333;font-size:12px;letter-spacing:1px}
+.phone .app{position:absolute;left:14px;right:14px;top:70px;bottom:80px}
+.phone .app .t{font-family:var(--display);font-size:13px;text-align:center;margin-bottom:8px}
+.phone .app .stk{height:22px;width:60%;border:2px solid var(--ink);border-radius:8px;box-shadow:2px 2px 0 var(--ink);margin:12px 0 6px}
+.phone .app .ln{height:8px;border-radius:4px;background:#e3ded1;margin:6px 0 6px 20px;position:relative}
+.phone .app .ln::before{content:"";position:absolute;left:-18px;top:-2px;width:11px;height:11px;border:2px solid var(--ink);border-radius:3px;background:#fff}
+.phone .toolbar{position:absolute;left:0;right:0;bottom:0;height:40px;background:#fff;border-top:1.5px solid #d8d3c6;display:flex;align-items:center;justify-content:space-around;font-size:15px;color:#333}
+.phone .toolbar span{width:26px;text-align:center}
+.phone .sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-top:2px solid var(--ink);border-radius:16px 16px 0 0;padding:10px 0 6px}
+.phone .sheet .grab{width:30px;height:4px;border-radius:2px;background:#ccc;margin:0 auto 8px}
+.phone .sheet .row{display:flex;align-items:center;gap:8px;padding:7px 12px;font-size:10.5px;color:#222;border-bottom:1px solid #eee}
+.phone .sheet .row:last-child{border-bottom:0}
+.phone .sheet .row i{font-style:normal;width:18px;height:18px;border-radius:5px;background:#eee;display:inline-flex;align-items:center;justify-content:center;font-size:10px}
+.phone .sheet .row.on{background:#fff6cc}
+.phone .modal{position:absolute;left:14px;right:14px;top:110px;background:#fff;border:2px solid var(--ink);border-radius:12px;padding:10px;font-size:10px;text-align:center}
+.phone .modal .ico{width:38px;height:38px;border-radius:9px;background:var(--yellow);border:2px solid var(--ink);margin:4px auto 6px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900}
+.phone .modal .btns{display:flex;justify-content:space-between;margin-top:8px;font-weight:700;color:#2f6fd6}
+.phone .home{position:absolute;inset:0;background:linear-gradient(160deg,#cfe6ff,#ffe4f0)}
+.phone .home .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:44px 14px 0}
+.phone .home .ap{aspect-ratio:1;border-radius:9px;background:rgba(255,255,255,.7)}
+.phone .home .ap.gv{background:var(--yellow);border:2px solid var(--ink);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;box-shadow:2px 2px 0 var(--ink)}
+.phone .home .cap{position:absolute;font-size:8px;font-weight:700;text-align:center;width:40px}
+.hl{position:absolute;width:44px;height:44px;border-radius:50%;border:3px solid var(--coral);box-shadow:0 0 0 4px rgba(255,107,107,.25);animation:pulse 1.4s ease-out infinite;pointer-events:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,107,107,.5)}100%{box-shadow:0 0 0 12px rgba(255,107,107,0)}}
+@media (prefers-reduced-motion:reduce){.hl{animation:none}}
+.hl.wide{width:auto;height:auto;border-radius:10px;left:8px;right:8px}
+
+/* 팁 */
+.tips{margin-top:44px;background:var(--paper);border:2px dashed var(--ink);border-radius:18px;padding:18px 20px}
+.tips h3{font-family:var(--display);font-weight:400;font-size:22px;margin:0 0 10px}
+.tips ul{margin:0;padding-left:18px}
+.tips li{margin:8px 0;font-size:14.5px}
+.tips li b{background:var(--mint);padding:0 4px;border-radius:4px}
+.tab{display:inline-block;font-size:12px;font-weight:800;border:2px solid var(--ink);border-radius:999px;padding:2px 10px;margin-left:6px;vertical-align:middle;background:var(--sky)}
+.tab.sam{background:var(--pink)}
+@media print{.hl{animation:none}body{background:#fff}.wrap{padding:10px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>굿바이브 설치하기</h1>
+<p class="sub">앱스토어 설치 없이, 홈 화면에 추가하면 바로 앱처럼 쓸 수 있어요. 2분이면 끝나요.</p>
+
+<div class="addr">
+  <div class="qr" id="qr"></div>
+  <div class="txt">
+    <div class="lab">앱 주소</div>
+    <div class="url" id="url">https://dochi-nunim.github.io/goodvibe/</div>
+    <button id="copy">주소 복사</button>
+    <div class="hint">폰 카메라로 QR을 찍어도 열려요. 단, 열릴 때 <b>Safari(아이폰)</b> 또는 <b>Chrome / 삼성 인터넷(갤럭시)</b>로 열어야 해요.</div>
+  </div>
+</div>
+
+<!-- ================= 아이폰 ================= -->
+<section>
+<h2><span class="ic"></span>아이폰</h2>
+<p class="intro"><b>Safari</b>에서 열어야 해요. 카카오톡·인스타 안에서 열린 창에서는 홈 화면 추가가 안 돼요.</p>
+<div class="steps">
+
+  <div class="step"><span class="n">1</span>
+    <div class="phone"><div class="notch"></div>
+      <div class="app"><div class="t">굿바이브</div><div class="stk" style="background:var(--yellow)"></div><div class="ln"></div><div class="ln" style="width:70%"></div><div class="stk" style="background:var(--mint)"></div><div class="ln"></div></div>
+      <div class="urlbar bottom"><i>ᴬᴬ</i> dochi-nunim.github.io <span class="dots">⋯</span></div>
+      <div class="toolbar"><span>‹</span><span>›</span><span>⇧</span><span>▢</span><span>⧉</span></div>
+    </div>
+    <p>Safari를 열고 주소창에 <b>앱 주소</b>를 넣어 접속해요<small>위의 "주소 복사"를 누른 뒤 주소창을 길게 눌러 붙여넣기</small></p>
+  </div>
+
+  <div class="step"><span class="n">2</span>
+    <div class="phone"><div class="notch"></div>
+      <div class="app"><div class="t">굿바이브</div><div class="stk" style="background:var(--yellow)"></div><div class="ln"></div><div class="ln" style="width:70%"></div><div class="stk" style="background:var(--mint)"></div><div class="ln"></div></div>
+      <div class="urlbar bottom"><i>ᴬᴬ</i> dochi-nunim.github.io <span class="dots">⋯</span></div>
+      <div class="toolbar"><span>‹</span><span>›</span><span>⇧</span><span>▢</span><span>⧉</span></div>
+      <div class="hl" style="right:8px;bottom:36px"></div>
+      <div class="hl" style="left:63px;bottom:-2px;width:38px;height:38px;border-color:#2f6fd6;box-shadow:none;animation:none;border-style:dashed"></div>
+    </div>
+    <p>주소창 오른쪽 <b>⋯</b> 버튼을 눌러요<small>⋯이 없는 옛 버전은 아래쪽 가운데 <b>공유 버튼 ⇧</b>(파란 점선)을 눌러요</small></p>
+  </div>
+
+  <div class="step"><span class="n">3</span>
+    <div class="phone"><div class="notch"></div>
+      <div class="app" style="opacity:.35"><div class="t">굿바이브</div><div class="stk" style="background:var(--yellow)"></div><div class="ln"></div></div>
+      <div class="sheet"><div class="grab"></div>
+        <div class="row"><i>⇧</i> 공유</div>
+        <div class="row"><i>☆</i> 북마크에 추가</div>
+        <div class="row"><i>📖</i> 읽기 목록에 추가</div>
+        <div class="row on"><i>＋</i> 홈 화면에 추가</div>
+        <div class="row"><i>🔍</i> 페이지에서 찾기</div>
+        <div class="row"><i>ᴬᴬ</i> 데스크탑 사이트 요청</div>
+      </div>
+      <div class="hl wide" style="bottom:72px;height:30px"></div>
+    </div>
+    <p><b>홈 화면에 추가</b>를 눌러요<small>목록에 안 보이면 위로 스크롤해서 찾아요. "공유"로 들어갔다면 그 안에도 같은 항목이 있어요</small></p>
+  </div>
+
+  <div class="step"><span class="n">4</span>
+    <div class="phone"><div class="notch"></div>
+      <div class="app" style="opacity:.35"><div class="t">굿바이브</div><div class="stk" style="background:var(--yellow)"></div><div class="ln"></div></div>
+      <div class="modal"><div class="ico">✓</div><div style="font-weight:700;font-size:11px">굿바이브</div><div style="color:#888;font-size:8.5px;margin-top:2px">dochi-nunim.github.io/goodvibe</div>
+        <div class="btns"><span>취소</span><span style="font-weight:900">추가</span></div></div>
+      <div class="hl" style="right:20px;top:196px;width:40px;height:30px;border-radius:8px"></div>
+    </div>
+    <p>오른쪽 위(또는 아래) <b>추가</b>를 눌러요<small>이름은 "굿바이브"로 두면 돼요</small></p>
+  </div>
+
+  <div class="step"><span class="n">5</span>
+    <div class="phone"><div class="home"><div class="notch"></div>
+      <div class="grid"><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap gv">✓</div><div class="ap"></div><div class="ap"></div></div>
+      <div class="cap" style="left:46px;top:164px">굿바이브</div>
+      <div class="hl" style="left:44px;top:118px;width:46px;height:46px;border-radius:12px"></div>
+    </div></div>
+    <p>홈 화면에 <b>노란 체크 아이콘</b>이 생겨요<small>앞으로는 이 아이콘으로 열어야 알림이 와요. Safari로 열면 알림이 안 와요</small></p>
+  </div>
+
+</div>
+</section>
+
+<!-- ================= 갤럭시 ================= -->
+<section>
+<h2><span class="ic">▲</span>갤럭시 <span class="tab sam">삼성 인터넷</span></h2>
+<p class="intro">갤럭시 기본 브라우저 <b>"인터넷"</b>(보라색 지구본 아이콘)을 쓰는 경우예요. 크롬을 쓰면 아래 크롬 안내를 보세요.</p>
+<div class="steps">
+
+  <div class="step"><span class="n">1</span>
+    <div class="phone"><div class="pill"></div>
+      <div class="urlbar top"><i>🔒</i> dochi-nunim.github.io</div>
+      <div class="app"><div class="t">굿바이브</div><div class="stk" style="background:var(--yellow)"></div><div class="ln"></div><div class="ln" style="width:70%"></div><div class="stk" style="background:var(--mint)"></div><div class="ln"></div></div>
+      <div class="toolbar"><span>‹</span><span>›</span><span>⌂</span><span>⧉</span><span>≡</span></div>
+    </div>
+    <p>인터넷 앱을 열고 <b>앱 주소</b>로 접속해요</p>
+  </div>
+
+  <div class="step"><span class="n">2</span>
+    <div class="phone"><div class="pill"></div>
+      <div class="urlbar top"><i>🔒</i> dochi-nunim.github.io</div>
+      <div class="app"><div class="t">굿바이브</div><div class="stk" style="background:var(--yellow)"></div><div class="ln"></div><div class="ln" style="width:70%"></div><div class="stk" style="background:var(--mint)"></div><div class="ln"></div></div>
+      <div class="toolbar"><span>‹</span><span>›</span><span>⌂</span><span>⧉</span><span>≡</span></div>
+      <div class="hl" style="right:4px;bottom:-2px"></div>
+    </div>
+    <p>오른쪽 아래 <b>≡ 메뉴</b>를 눌러요</p>
+  </div>
+
+  <div class="step"><span class="n">3</span>
+    <div class="phone"><div class="pill"></div>
+      <div class="app" style="opacity:.35"><div class="t">굿바이브</div><div class="stk" style="background:var(--yellow)"></div><div class="ln"></div></div>
+      <div class="sheet"><div class="grab"></div>
+        <div class="row"><i>☆</i> 북마크</div>
+        <div class="row"><i>↓</i> 다운로드</div>
+        <div class="row on"><i>＋</i> 현재 페이지 추가</div>
+        <div class="row"><i>⇧</i> 공유</div>
+        <div class="row"><i>🔍</i> 페이지에서 찾기</div>
+        <div class="row"><i>⚙</i> 설정</div>
+      </div>
+      <div class="hl wide" style="bottom:100px;height:30px"></div>
+    </div>
+    <p><b>현재 페이지 추가</b>를 눌러요<small>버전에 따라 "페이지 추가", "홈 화면에 추가"로 보이기도 해요</small></p>
+  </div>
+
+  <div class="step"><span class="n">4</span>
+    <div class="phone"><div class="pill"></div>
+      <div class="app" style="opacity:.35"><div class="t">굿바이브</div><div class="stk" style="background:var(--yellow)"></div><div class="ln"></div></div>
+      <div class="sheet"><div class="grab"></div>
+        <div class="row"><i>☆</i> 북마크</div>
+        <div class="row"><i>▣</i> 빠른 실행</div>
+        <div class="row on"><i>⌂</i> 홈 화면</div>
+        <div class="row"><i>💾</i> 저장된 페이지</div>
+      </div>
+      <div class="hl wide" style="bottom:44px;height:30px"></div>
+    </div>
+    <p><b>홈 화면</b>을 고른 뒤 <b>추가</b>를 눌러요<small>주소창에 "설치" 아이콘이 뜨면 그걸 눌러도 같아요</small></p>
+  </div>
+
+</div>
+</section>
+
+<section>
+<h2><span class="ic">◉</span>갤럭시 <span class="tab">Chrome</span></h2>
+<div class="steps">
+
+  <div class="step"><span class="n">1</span>
+    <div class="phone"><div class="pill"></div>
+      <div class="urlbar top"><i>🔒</i> dochi-nunim.github.io <span class="dots">⋮</span></div>
+      <div class="app"><div class="t">굿바이브</div><div class="stk" style="background:var(--yellow)"></div><div class="ln"></div><div class="ln" style="width:70%"></div><div class="stk" style="background:var(--mint)"></div><div class="ln"></div></div>
+    </div>
+    <p>Chrome을 열고 <b>앱 주소</b>로 접속해요</p>
+  </div>
+
+  <div class="step"><span class="n">2</span>
+    <div class="phone"><div class="pill"></div>
+      <div class="urlbar top"><i>🔒</i> dochi-nunim.github.io <span class="dots">⋮</span></div>
+      <div class="app"><div class="t">굿바이브</div><div class="stk" style="background:var(--yellow)"></div><div class="ln"></div><div class="ln" style="width:70%"></div><div class="stk" style="background:var(--mint)"></div><div class="ln"></div></div>
+      <div class="hl" style="right:6px;top:24px"></div>
+    </div>
+    <p>오른쪽 위 <b>⋮</b> 버튼을 눌러요</p>
+  </div>
+
+  <div class="step"><span class="n">3</span>
+    <div class="phone"><div class="pill"></div>
+      <div class="app" style="opacity:.35"><div class="t">굿바이브</div><div class="stk" style="background:var(--yellow)"></div><div class="ln"></div></div>
+      <div class="sheet" style="top:30px;bottom:auto;border-radius:12px;left:40px;border:2px solid var(--ink)"><div class="grab" style="display:none"></div>
+        <div class="row"><i>＋</i> 새 탭</div>
+        <div class="row"><i>☆</i> 북마크</div>
+        <div class="row"><i>↓</i> 다운로드</div>
+        <div class="row"><i>⇧</i> 공유</div>
+        <div class="row on"><i>⌂</i> 홈 화면에 추가</div>
+        <div class="row"><i>⚙</i> 설정</div>
+      </div>
+      <div class="hl wide" style="top:150px;height:30px;left:42px"></div>
+    </div>
+    <p><b>홈 화면에 추가</b>를 눌러요<small>"앱 설치"로 보이기도 해요</small></p>
+  </div>
+
+  <div class="step"><span class="n">4</span>
+    <div class="phone"><div class="pill"></div>
+      <div class="app" style="opacity:.35"><div class="t">굿바이브</div><div class="stk" style="background:var(--yellow)"></div><div class="ln"></div></div>
+      <div class="modal"><div class="ico">✓</div><div style="font-weight:700;font-size:11px">굿바이브</div><div style="color:#888;font-size:8.5px;margin-top:2px">dochi-nunim.github.io</div>
+        <div class="btns"><span>취소</span><span style="font-weight:900">설치</span></div></div>
+      <div class="hl" style="right:20px;top:196px;width:40px;height:30px;border-radius:8px"></div>
+    </div>
+    <p><b>설치</b>(또는 추가)를 눌러요<small>홈 화면에 노란 체크 아이콘이 생겨요</small></p>
+  </div>
+
+</div>
+</section>
+
+<div class="tips">
+<h3>잘 안 될 때</h3>
+<ul>
+  <li><b>"홈 화면에 추가"가 안 보여요</b> — 카카오톡·인스타그램·네이버 앱 안에서 링크가 열린 거예요. 그 화면 오른쪽 위 <b>⋮</b> 또는 <b>공유</b> → "다른 브라우저로 열기" / "Safari로 열기"를 누른 뒤 다시 해 보세요.</li>
+  <li><b>알림을 받고 싶어요</b> — 홈 화면 아이콘으로 앱을 연 뒤 ☰ 메뉴 → <b>리마인더 관리</b> → <b>알림 허용하기</b>. 아이폰은 반드시 홈 화면 아이콘으로 열어야 알림 권한을 물어봐요.</li>
+  <li><b>폰과 컴퓨터를 같이 쓰고 싶어요</b> — ☰ 메뉴 → <b>구글로 로그인</b>. 같은 구글 계정으로 로그인한 기기끼리 할 일이 똑같이 맞춰져요.</li>
+  <li><b>아이콘을 지웠어요</b> — 데이터는 남아 있어요. 위 순서대로 다시 추가하면 그대로 나와요.</li>
+</ul>
+</div>
+</div>
+<script>
+(function(){
+  var url=document.getElementById('url').textContent.trim();
+  try{if(window.QRCode)new QRCode(document.getElementById('qr'),{text:url,width:120,height:120,correctLevel:QRCode.CorrectLevel.M});}catch(e){}
+  var b=document.getElementById('copy');
+  b.addEventListener('click',function(){
+    var done=function(){b.textContent='복사됐어요 ✓';setTimeout(function(){b.textContent='주소 복사';},1800);};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(done).catch(function(){window.prompt('주소를 길게 눌러 복사하세요',url);});}
+    else window.prompt('주소를 길게 눌러 복사하세요',url);
+  });
+})();
+</script>
+</body>
+</html>
