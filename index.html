@@ -92,6 +92,16 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .item.nodrag .handle{visibility:hidden}
 .empty{color:var(--muted2);font-size:14px;padding:10px 6px}
 
+/* search */
+.qbox{width:100%;border:var(--bw) solid var(--ink);background:var(--paper);border-radius:12px;padding:12px 14px;font-size:17px;outline:none;-webkit-appearance:none;appearance:none;min-height:50px;box-shadow:var(--sh2)}
+.qbox:focus{box-shadow:var(--sh)}
+mark{background:var(--yellow);color:var(--ink);padding:0 2px;border-radius:3px}
+.hit{cursor:pointer}
+.hit .l0{font-size:12px;color:var(--muted);margin-bottom:5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.hit .chip{display:inline-block;border:2px solid var(--ink);border-radius:7px;padding:0 6px;font-weight:800;font-size:11px;color:var(--ink)}
+.hit .tag{display:inline-block;font-size:10px;border:2px solid var(--ink);border-radius:6px;padding:0 5px;font-weight:700;background:var(--paper)}
+.hit.done .l1{color:var(--muted2);text-decoration:line-through}
+.hit .l2{white-space:pre-line}
 /* routine list */
 .rt{display:flex;align-items:center;gap:8px;padding:12px 8px 12px 14px;background:var(--paper);border:var(--bw) solid var(--ink);border-radius:var(--r);box-shadow:var(--sh2);margin:10px 3px 12px 0}
 .rt .body{flex:1;min-width:0}
@@ -298,6 +308,7 @@ function render(){
   else if(state.view==='categories')html=renderCategories();
   else if(state.view==='reminders')html=renderReminders();
   else if(state.view==='backup')html=renderBackup();
+  else if(state.view==='search')html=renderSearch();
   if(state.menu)html+=renderMenu();
   if(state.month)html+=renderMonth();
   if(state.sheet)html+=renderSheet();
@@ -311,7 +322,7 @@ function topbar(title,right){
 
 function renderHome(){
   const days=weekDays(state.date);
-  let h=`<div class="topbar"><span style="width:44px"></span><div class="title">굿바이브</div><button class="iconbtn" data-act="menu">☰</button></div>`;
+  let h=`<div class="topbar"><button class="iconbtn" data-act="search" aria-label="검색"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg></button><div class="title">굿바이브</div><button class="iconbtn" data-act="menu">☰</button></div>`;
   h+=`<div class="weekhead"><button class="wtitle" data-act="today"><span class="dot"></span>${weekLabel(state.date)}</button>
       <button class="pillbtn" data-act="month">월</button><button class="pillbtn" data-act="prevweek">‹</button><button class="pillbtn" data-act="nextweek">›</button></div>`;
   h+=`<div class="weekstrip">`+days.map(d=>{
@@ -393,6 +404,33 @@ function renderReminders(){
   return h;
 }
 
+function renderSearch(){
+  let h=topbar('검색');
+  h+=`<div class="field" style="margin-top:2px"><input type="search" id="q" class="qbox" placeholder="할 일, 메모, 루틴에서 찾기" value="${esc(state.q||'')}" autocomplete="off" autocapitalize="off" enterkeyhint="search"></div><div id="results">${renderResults()}</div>`;
+  return h;
+}
+// 검색어 강조: 먼저 HTML 이스케이프한 뒤 <mark>로 감싼다
+function hlText(text,q){
+  const e=esc(text);if(!q)return e;
+  const re=new RegExp(esc(q).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'ig');
+  return e.replace(re,m=>'<mark>'+m+'</mark>');
+}
+function renderResults(){
+  const q=(state.q||'').trim();
+  if(!q)return `<div class="empty">낱말을 입력하면 지금까지 적은 할 일·메모·루틴 전체에서 찾아요.</div>`;
+  const lq=q.toLowerCase();const t=today();
+  const memoLines=m=>{const ls=(m||'').split(/\n/).filter(x=>x.trim());const hit=ls.filter(x=>x.toLowerCase().includes(lq));return (hit.length?hit:ls).slice(0,2);};
+  const tasks=db.tasks.filter(x=>(x.title+'\n'+(x.memo||'')).toLowerCase().includes(lq)).sort((a,b)=>b.date.localeCompare(a.date)||b.created-a.created);
+  const routines=db.routines.filter(x=>(x.title+'\n'+(x.memo||'')).toLowerCase().includes(lq));
+  if(!tasks.length&&!routines.length)return `<div class="empty">"${esc(q)}" — 찾은 내용이 없어요.</div>`;
+  const dlabel=d=>{const dd=parse(d);const y=dd.getFullYear()!==new Date().getFullYear()?dd.getFullYear()+'. ':'';return y+kdateShort(d)+(d===t?' · 오늘':'');};
+  let h=`<div class="help" style="margin:0 0 10px">${tasks.length+routines.length}개 찾음</div>`;
+  routines.forEach(r=>{const c=cat(r.catId)||{};
+    h+=`<div class="rt hit" data-act="openhit" data-kind="routine" data-id="${r.id}"><div class="body"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span><span class="tag">루틴</span>${routineStatus(r)[0]}</div><div class="l1">${hlText(r.title,q)}</div>${memoLines(r.memo).length?`<div class="l2">${memoLines(r.memo).map(x=>hlText(x,q)).join('<br>')}</div>`:''}</div><span class="chev">›</span></div>`;});
+  tasks.forEach(x=>{const c=cat(x.catId)||{};
+    h+=`<div class="rt hit ${x.done?'done':''}" data-act="openhit" data-kind="task" data-id="${x.id}"><div class="body"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span>${dlabel(x.date)}${x.done?' · 완료':''}</div><div class="l1">${hlText(x.title,q)}</div>${memoLines(x.memo).length?`<div class="l2">${memoLines(x.memo).map(y=>hlText(y,q)).join('<br>')}</div>`:''}</div><span class="chev">›</span></div>`;});
+  return h;
+}
 function renderBackup(){
   let h=topbar('백업');
   h+=`<div class="help">아래 내용을 복사해 두면 다른 기기나 브라우저에서 그대로 복원할 수 있어요.</div>`;
@@ -694,6 +732,11 @@ app.addEventListener('click',e=>{
 
     case 'login':state.menu=false;render();login();break;
     case 'logout':if(confirm('로그아웃할까요? 이 기기의 데이터는 그대로 남아요.')){logout();state.menu=false;render();}break;
+    case 'search':state.view='search';render();{const q=$('q');if(q)setTimeout(()=>q.focus(),50);}break;
+    case 'openhit':{
+      if(el.dataset.kind==='task'){const t=db.tasks.find(x=>x.id===id);if(!t)return;state.date=t.date;state.view='home';openSheet({type:'task',id});}
+      else{state.view='routines';openSheet({type:'routine',id});}
+      break;}
     case 'closesheet':closeSheet();break;
     case 'copybk':navigator.clipboard.writeText($('bk').value).then(()=>toast('복사했어요')).catch(()=>{$('bk').select();toast('길게 눌러 복사해 주세요');});break;
     case 'dlbk':{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(db)],{type:'application/json'}));a.download=`dayplanner-${today()}.json`;a.click();break;}
@@ -703,6 +746,7 @@ app.addEventListener('click',e=>{
       catch(e){toast('형식이 올바르지 않아요');}break;}
   }
 });
+app.addEventListener('input',e=>{if(e.target.id==='q'){state.q=e.target.value;const r=$('results');if(r)r.innerHTML=renderResults();}});
 app.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&e.target.classList.contains('bigname')){e.preventDefault();const b=document.querySelector('.sheet .btn:not(.ghost):not(.danger)');b&&b.click();}
   if(e.key==='Escape'&&state.sheet)closeSheet();
