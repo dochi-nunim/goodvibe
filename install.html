@@ -65,11 +65,13 @@ section{margin-top:44px}
 .phone .home{position:absolute;inset:0;background:linear-gradient(160deg,#cfe6ff,#ffe4f0)}
 .phone .home .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:44px 14px 0}
 .phone .home .ap{aspect-ratio:1;border-radius:9px;background:rgba(255,255,255,.7)}
-.phone .home .ap.gv{background:var(--yellow);border:2px solid var(--ink);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;box-shadow:2px 2px 0 var(--ink)}
+.phone .home .ap.gv{position:relative;overflow:visible;background:var(--yellow);border:2px solid var(--ink);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;box-shadow:2px 2px 0 var(--ink)}
 .phone .home .cap{position:absolute;font-size:8px;font-weight:700;text-align:center;width:40px}
 .hl{position:absolute;width:44px;height:44px;border-radius:50%;border:3px solid var(--coral);box-shadow:0 0 0 4px rgba(255,107,107,.25);animation:pulse 1.4s ease-out infinite;pointer-events:none}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,107,107,.5)}100%{box-shadow:0 0 0 12px rgba(255,107,107,0)}}
 @media (prefers-reduced-motion:reduce){.hl{animation:none}}
+.tgt{position:relative}
+.tgt>.hl{left:50%;top:50%;transform:translate(-50%,-50%)}
 .hl.wide{width:auto;height:auto;border-radius:10px;left:8px;right:8px}
 
 /* 팁 */
@@ -144,17 +146,14 @@ section{margin-top:44px}
     <div class="phone"><div class="notch"></div>
       <div class="app" style="opacity:.35"><div class="t">굿바이브</div><div class="stk" style="background:var(--yellow)"></div><div class="ln"></div></div>
       <div class="modal"><div class="ico">✓</div><div style="font-weight:700;font-size:11px">굿바이브</div><div style="color:#888;font-size:8.5px;margin-top:2px">dochi-nunim.github.io/goodvibe</div>
-        <div class="btns"><span>취소</span><span style="font-weight:900">추가</span></div></div>
-      <div class="hl" style="right:20px;top:196px;width:40px;height:30px;border-radius:8px"></div>
+        <div class="btns"><span>취소</span><span class="tgt" style="font-weight:900;padding:2px 6px">추가<div class="hl" style="width:44px;height:30px;border-radius:8px"></div></span></div></div>
     </div>
     <p>오른쪽 위(또는 아래) <b>추가</b>를 눌러요<small>이름은 "굿바이브"로 두면 돼요</small></p>
   </div>
 
   <div class="step"><span class="n">5</span>
     <div class="phone"><div class="home"><div class="notch"></div>
-      <div class="grid"><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap gv">✓</div><div class="ap"></div><div class="ap"></div></div>
-      <div class="cap" style="left:46px;top:164px">굿바이브</div>
-      <div class="hl" style="left:44px;top:118px;width:46px;height:46px;border-radius:12px"></div>
+      <div class="grid"><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap"></div><div class="ap gv tgt">✓<div class="hl" style="width:52px;height:52px;border-radius:14px"></div><div class="cap" style="left:50%;top:100%;transform:translateX(-50%);margin-top:3px">굿바이브</div></div><div class="ap"></div><div class="ap"></div></div>
     </div></div>
     <p>홈 화면에 <b>노란 체크 아이콘</b>이 생겨요<small>앞으로는 이 아이콘으로 열어야 알림이 와요. Safari로 열면 알림이 안 와요</small></p>
   </div>
@@ -261,8 +260,7 @@ section{margin-top:44px}
     <div class="phone"><div class="pill"></div>
       <div class="app" style="opacity:.35"><div class="t">굿바이브</div><div class="stk" style="background:var(--yellow)"></div><div class="ln"></div></div>
       <div class="modal"><div class="ico">✓</div><div style="font-weight:700;font-size:11px">굿바이브</div><div style="color:#888;font-size:8.5px;margin-top:2px">dochi-nunim.github.io</div>
-        <div class="btns"><span>취소</span><span style="font-weight:900">설치</span></div></div>
-      <div class="hl" style="right:20px;top:196px;width:40px;height:30px;border-radius:8px"></div>
+        <div class="btns"><span>취소</span><span class="tgt" style="font-weight:900;padding:2px 6px">설치<div class="hl" style="width:44px;height:30px;border-radius:8px"></div></span></div></div>
     </div>
     <p><b>설치</b>(또는 추가)를 눌러요<small>홈 화면에 노란 체크 아이콘이 생겨요</small></p>
   </div>
