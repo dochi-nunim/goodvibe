@@ -157,6 +157,7 @@ mark{background:var(--yellow);color:var(--ink);padding:0 2px;border-radius:3px}
 @keyframes up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
 .sheet .grab{width:44px;height:6px;border-radius:3px;background:var(--ink);margin:0 auto 14px;opacity:.35}
 .sheet h3{margin:4px 0 14px;font-family:var(--display);font-weight:400;font-size:22px;text-align:center}
+.sheet h3 .h3sub{display:block;font-family:-apple-system,system-ui,sans-serif;font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
 .field{margin-bottom:14px}
 .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;font-weight:700}
 .field input[type=text],.field textarea,.field select,.field input[type=date],.field input[type=time],.field input[type=datetime-local]{
@@ -220,7 +221,7 @@ function defaultDB(){
   const names=[["업무","#ffd93d"],["담임","#8ee3c8"],["수업","#ffb3d1"],["자기 개발","#c9b6ff"],["생활","#ffc09f"],["주식","#d4f37a"],["건강","#9fd3ff"]];
   return {
     categories:names.map(([name,color],i)=>({id:uid()+i,name,color})),
-    tasks:[],routines:[],routineDone:{},routineSkip:{},dayOrder:{},
+    tasks:[],routines:[],routineDone:{},routineSkip:{},routineNotes:{},dayOrder:{},
     reminders:[],notified:{},settings:{}
   };
 }
@@ -228,7 +229,7 @@ let db;
 try{db=JSON.parse(localStorage.getItem(KEY))||null;}catch(e){db=null;}
 if(!db){db=defaultDB();save();}
 for(const k of ['tasks','routines','categories','reminders'])db[k]=db[k]||[];
-for(const k of ['routineDone','routineSkip','dayOrder','notified','settings'])db[k]=db[k]||{};
+for(const k of ['routineDone','routineSkip','routineNotes','dayOrder','notified','settings'])db[k]=db[k]||{};
 db.categories.forEach(c=>{if(OLD_COLORS[c.color])c.color=OLD_COLORS[c.color];});
 function save(){db.updatedAt=Date.now();localStorage.setItem(KEY,JSON.stringify(db));schedulePush();}
 
@@ -273,7 +274,8 @@ function itemsFor(date){
   db.routines.forEach(r=>{
     if(!routineActiveOn(r,date)||db.routineSkip[r.id+'|'+date])return;
     const dn=db.routineDone[r.id+'|'+date];
-    out.push({kind:'routine',id:'r:'+r.id,rid:r.id,catId:r.catId,title:r.title,memo:r.memo,done:!!dn,doneAt:dn||0,created:r.created||0,remind:r.remindTime});
+    const note=db.routineNotes[r.id+'|'+date];
+    out.push({kind:'routine',id:'r:'+r.id,rid:r.id,catId:r.catId,title:r.title,memo:note!=null?note:r.memo,done:!!dn,doneAt:dn||0,created:r.created||0,remind:r.remindTime});
   });
   return out;
 }
@@ -422,11 +424,14 @@ function renderResults(){
   const memoLines=m=>{const ls=(m||'').split(/\n/).filter(x=>x.trim());const hit=ls.filter(x=>x.toLowerCase().includes(lq));return (hit.length?hit:ls).slice(0,2);};
   const tasks=db.tasks.filter(x=>(x.title+'\n'+(x.memo||'')).toLowerCase().includes(lq)).sort((a,b)=>b.date.localeCompare(a.date)||b.created-a.created);
   const routines=db.routines.filter(x=>(x.title+'\n'+(x.memo||'')).toLowerCase().includes(lq));
-  if(!tasks.length&&!routines.length)return `<div class="empty">"${esc(q)}" — 찾은 내용이 없어요.</div>`;
+  const notes=Object.keys(db.routineNotes).map(k=>{const i=k.lastIndexOf('|');const r=db.routines.find(x=>x.id===k.slice(0,i));return r?{r,date:k.slice(i+1),note:db.routineNotes[k]}:null;}).filter(n=>n&&(n.note||'').toLowerCase().includes(lq)).sort((a,b)=>b.date.localeCompare(a.date));
+  if(!tasks.length&&!routines.length&&!notes.length)return `<div class="empty">"${esc(q)}" — 찾은 내용이 없어요.</div>`;
   const dlabel=d=>{const dd=parse(d);const y=dd.getFullYear()!==new Date().getFullYear()?dd.getFullYear()+'. ':'';return y+kdateShort(d)+(d===t?' · 오늘':'');};
-  let h=`<div class="help" style="margin:0 0 10px">${tasks.length+routines.length}개 찾음</div>`;
+  let h=`<div class="help" style="margin:0 0 10px">${tasks.length+routines.length+notes.length}개 찾음</div>`;
   routines.forEach(r=>{const c=cat(r.catId)||{};
     h+=`<div class="rt hit" data-act="openhit" data-kind="routine" data-id="${r.id}"><div class="body"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span><span class="tag">루틴</span>${routineStatus(r)[0]}</div><div class="l1">${hlText(r.title,q)}</div>${memoLines(r.memo).length?`<div class="l2">${memoLines(r.memo).map(x=>hlText(x,q)).join('<br>')}</div>`:''}</div><span class="chev">›</span></div>`;});
+  notes.forEach(n=>{const c=cat(n.r.catId)||{};
+    h+=`<div class="rt hit" data-act="openhit" data-kind="rnote" data-id="${n.r.id}" data-date="${n.date}"><div class="body"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span><span class="tag">루틴</span>${dlabel(n.date)}</div><div class="l1">${hlText(n.r.title,q)}</div><div class="l2">${memoLines(n.note).map(y=>hlText(y,q)).join('<br>')}</div></div><span class="chev">›</span></div>`;});
   tasks.forEach(x=>{const c=cat(x.catId)||{};
     h+=`<div class="rt hit ${x.done?'done':''}" data-act="openhit" data-kind="task" data-id="${x.id}"><div class="body"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span>${dlabel(x.date)}${x.done?' · 완료':''}</div><div class="l1">${hlText(x.title,q)}</div>${memoLines(x.memo).length?`<div class="l2">${memoLines(x.memo).map(y=>hlText(y,q)).join('<br>')}</div>`:''}</div><span class="chev">›</span></div>`;});
   return h;
@@ -493,7 +498,7 @@ function renderSheet(){
     const days=d.days||[0,1,2,3,4,5,6];
     inner=`<h3>${r?'루틴 편집':'루틴 추가'}</h3>
      <div class="field"><input class="bigname" id="f_title" type="text" placeholder="루틴 이름" value="${esc(d.title)}" autocomplete="off"></div>
-     <div class="field"><label>메모</label><textarea id="f_memo">${esc(d.memo)}</textarea></div>
+     <div class="field"><label>기본 메모 (매일 똑같이 보여요 · 날짜별 메모는 홈에서 루틴을 탭)</label><textarea id="f_memo">${esc(d.memo)}</textarea></div>
      <div class="field"><label>카테고리</label>${catPicker(d.catId)}<input type="hidden" id="f_cat" value="${d.catId||''}"></div>
      <div class="field"><label>기간 (기한)</label><div class="row"><input type="date" id="f_start" value="${d.start}"><input type="date" id="f_end" value="${d.end||''}"></div>
        <div class="quick"><button type="button" data-quick="end" data-val="30">한 달</button><button type="button" data-quick="end" data-val="90">3개월</button><button type="button" data-quick="end" data-val="365">1년</button><button type="button" data-quick="end" data-val="">기한 없음</button></div></div>
@@ -502,6 +507,13 @@ function renderSheet(){
      <div class="field"><label>매일 알림 시각 (선택)</label><div class="row"><input type="time" id="f_rtime" value="${d.remindTime||''}"><button type="button" class="btn ghost" style="flex:0 0 auto;padding:0 16px" data-quick="clearrtime">지우기</button></div></div>
      ${s.date&&r?`<div class="btns" style="margin-top:0"><button class="btn ghost" data-act="skiproutine" data-id="${r.id}" data-date="${s.date}">${kdateShort(s.date)}만 빼기</button><button class="btn ghost" data-act="endroutine" data-id="${r.id}" data-date="${s.date}">여기서 끝내기</button></div>`:''}
      <div class="btns">${r?`<button class="btn danger" data-act="delroutine" data-id="${r.id}">삭제</button>`:''}<button class="btn" data-act="saveroutine" data-id="${r?r.id:''}">저장</button></div>`;
+  }else if(s.type==='rday'){
+    const r=db.routines.find(x=>x.id===s.id);if(!r)return '';
+    const key=r.id+'|'+s.date;const note=db.routineNotes[key];
+    inner=`<h3>${esc(r.title)}<small class="h3sub">${kdateShort(s.date)} · 루틴</small></h3>
+     <div class="field"><label>이 날의 메모 (이 날에만 남아요)</label><textarea id="f_note" placeholder="${esc(r.memo||'예) 오늘 특이사항')}">${esc(note!=null?note:(r.memo||''))}</textarea></div>
+     <div class="btns" style="margin-top:0"><button class="btn ghost" data-act="skiproutine" data-id="${r.id}" data-date="${s.date}">이 날만 빼기</button><button class="btn ghost" data-act="editroutine" data-id="${r.id}" data-date="${s.date}">루틴 설정</button></div>
+     <div class="btns"><button class="btn" data-act="savernote" data-id="${r.id}" data-date="${s.date}">저장</button></div>`;
   }else if(s.type==='cat'){
     const c=s.id?cat(s.id):null;
     const d=c||{name:'',color:PALETTE[db.categories.length%PALETTE.length]};
@@ -671,7 +683,7 @@ app.addEventListener('click',e=>{
 
     case 'addtask':openSheet({type:'task',catId:el.dataset.cat||undefined});break;
     case 'open':
-      if(id.startsWith('r:'))openSheet({type:'routine',id:id.slice(2),date:state.date});
+      if(id.startsWith('r:'))openSheet({type:'rday',id:id.slice(2),date:state.date});
       else openSheet({type:'task',id});break;
     case 'toggle':{
       if(id.startsWith('r:')){const k=id.slice(2)+'|'+state.date;if(db.routineDone[k])delete db.routineDone[k];else db.routineDone[k]=Date.now();}
@@ -688,7 +700,8 @@ app.addEventListener('click',e=>{
     case 'deltask':if(confirm('이 할 일을 삭제할까요?')){db.tasks=db.tasks.filter(x=>x.id!==id);save();closeSheet();}break;
 
     case 'addroutine':openSheet({type:'routine',catId:el.dataset.cat});break;
-    case 'editroutine':openSheet({type:'routine',id});break;
+    case 'editroutine':openSheet({type:'routine',id,date:el.dataset.date});break;
+    case 'savernote':{const r=db.routines.find(x=>x.id===id);if(!r)return;const v=$('f_note').value.trim();const key=id+'|'+el.dataset.date;if(v===(r.memo||''))delete db.routineNotes[key];else db.routineNotes[key]=v;save();closeSheet();break;}
     case 'saveroutine':{
       const title=$('f_title').value.trim();if(!title){toast('루틴 이름을 입력해 주세요');$('f_title').focus();return;}
       const catId=$('f_cat').value;if(!catId){toast('카테고리를 골라 주세요');return;}
@@ -700,7 +713,7 @@ app.addEventListener('click',e=>{
       let r=id?db.routines.find(x=>x.id===id):null;
       if(r)Object.assign(r,data);else{r={id:uid(),created:Date.now(),order:db.routines.length,...data};db.routines.push(r);}
       save();closeSheet();break;}
-    case 'delroutine':if(confirm('이 루틴을 삭제할까요? 지난 기록도 함께 지워져요.')){db.routines=db.routines.filter(x=>x.id!==id);Object.keys(db.routineDone).forEach(k=>{if(k.startsWith(id+'|'))delete db.routineDone[k];});save();closeSheet();}break;
+    case 'delroutine':if(confirm('이 루틴을 삭제할까요? 지난 기록도 함께 지워져요.')){db.routines=db.routines.filter(x=>x.id!==id);Object.keys(db.routineDone).forEach(k=>{if(k.startsWith(id+'|'))delete db.routineDone[k];});Object.keys(db.routineNotes).forEach(k=>{if(k.startsWith(id+'|'))delete db.routineNotes[k];});save();closeSheet();}break;
     case 'skiproutine':db.routineSkip[id+'|'+el.dataset.date]=true;save();closeSheet();toast('이 날만 뺐어요');break;
     case 'endroutine':{const r=db.routines.find(x=>x.id===id);if(r&&confirm(`${kdateShort(el.dataset.date)}까지만 하고 끝낼까요?`)){r.end=el.dataset.date;save();closeSheet();}break;}
 
@@ -735,6 +748,7 @@ app.addEventListener('click',e=>{
     case 'search':state.view='search';render();{const q=$('q');if(q)setTimeout(()=>q.focus(),50);}break;
     case 'openhit':{
       if(el.dataset.kind==='task'){const t=db.tasks.find(x=>x.id===id);if(!t)return;state.date=t.date;state.view='home';openSheet({type:'task',id});}
+      else if(el.dataset.kind==='rnote'){state.date=el.dataset.date;state.view='home';openSheet({type:'rday',id,date:el.dataset.date});}
       else{state.view='routines';openSheet({type:'routine',id});}
       break;}
     case 'closesheet':closeSheet();break;
@@ -742,7 +756,7 @@ app.addEventListener('click',e=>{
     case 'dlbk':{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(db)],{type:'application/json'}));a.download=`dayplanner-${today()}.json`;a.click();break;}
     case 'restorebk':{
       try{const j=JSON.parse($('bk').value);if(!j.categories||!Array.isArray(j.tasks))throw 0;
-        if(confirm('지금 데이터를 붙여넣은 내용으로 바꿀까요?')){db=j;for(const k of ['tasks','routines','categories','reminders'])db[k]=db[k]||[];for(const k of ['routineDone','routineSkip','dayOrder','notified','settings'])db[k]=db[k]||{};save();state.view='home';render();toast('복원했어요');}}
+        if(confirm('지금 데이터를 붙여넣은 내용으로 바꿀까요?')){db=j;for(const k of ['tasks','routines','categories','reminders'])db[k]=db[k]||[];for(const k of ['routineDone','routineSkip','routineNotes','dayOrder','notified','settings'])db[k]=db[k]||{};save();state.view='home';render();toast('복원했어요');}}
       catch(e){toast('형식이 올바르지 않아요');}break;}
   }
 });
@@ -787,7 +801,7 @@ function mergeDb(r,l){
   const union=(a,b)=>{const ids=new Set((a||[]).map(x=>x.id));return (a||[]).concat((b||[]).filter(x=>!ids.has(x.id)).map(x=>Object.assign({},x,{catId:catMap[x.catId]||x.catId})));};
   out.tasks=union(r.tasks,l.tasks);out.routines=union(r.routines,l.routines);
   const ids=new Set((r.reminders||[]).map(x=>x.id));out.reminders=(r.reminders||[]).concat((l.reminders||[]).filter(x=>!ids.has(x.id)));
-  for(const k of ["routineDone","routineSkip","dayOrder","notified","settings"])out[k]=Object.assign({},l[k]||{},r[k]||{});
+  for(const k of ["routineDone","routineSkip","routineNotes","dayOrder","notified","settings"])out[k]=Object.assign({},l[k]||{},r[k]||{});
   return out;
 }
 async function startSync(){
