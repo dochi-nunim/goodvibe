@@ -901,9 +901,16 @@ function allCalEvents(){const c=calTargets(),p=calPick();return [...(p.daily?c.d
 function buildIcs(events){return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//GoodVibe//KO','CALSCALE:GREGORIAN','METHOD:PUBLISH',...events.flat(),'END:VCALENDAR'].map(icsFold).join('\r\n')+'\r\n';}
 const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
 // 아이폰은 캘린더 화면으로 바로 연다 ('모두 추가'). 그 밖에는 파일로 받는다. asFile 이면 아이폰도 파일로 받는다.
+// 단, 홈 화면 앱(standalone) 안에서는 아이폰이 캘린더 열기를 막는다 → cal.html 을 Safari 창으로 따로 열어 거기서 넣는다.
+// 넣을 내용은 주소의 # 뒤에 담겨 서버로 가지 않는다.
+const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||navigator.standalone;
 function sendToCalendar(events,name,asFile){
   if(!events.length){toast('캘린더에 넣을 알림이 없어요. 리마인더나 할 일·루틴의 알림 시각을 먼저 정해 주세요.',4000);return;}
   const ics=buildIcs(events);
+  if(isIOS()&&!asFile&&isStandalone()){
+    const a=document.createElement('a');a.href='cal.html#'+encodeURIComponent(ics);a.target='_blank';a.rel='noopener';
+    document.body.appendChild(a);a.click();a.remove();return;
+  }
   if(isIOS()&&!asFile){location.href='data:text/calendar;charset=utf-8,'+encodeURIComponent(ics);return;}
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar;charset=utf-8'}));
   a.download='goodvibe-'+name+'-'+today()+'.ics';document.body.appendChild(a);a.click();a.remove();
@@ -917,7 +924,7 @@ function renderCalBox(){
     ${[['daily','매일 리마인더','아래에 정한 시각, 매일'],['routines','루틴 알림','반복 요일마다'],['tasks','할 일 알림','정한 날짜·시각에 한 번']].map(([k,name,hint])=>`<label class="calpick"><input type="checkbox" data-calpick="${k}" ${calPick()[k]?'checked':''}><span>${name} ${c[k].length}개 <small>· ${hint}</small></span></label>`).join('')}
     <button class="btn" data-act="cal_all">고른 알림 캘린더에 넣기</button>
     <button class="linkbtn" data-act="cal_all_file">캘린더가 안 열리면 파일로 받기</button>
-    <div class="calsub">· 아이폰: 캘린더 화면이 뜨면 <b>모두 추가</b><br>· 갤럭시: 받은 파일을 눌러 캘린더 앱으로 열기<br>· 나중에 시각을 바꾸거나 지운 알림은 캘린더에서도 직접 고치거나 지워 주세요. 같은 알림을 두 번 넣으면 겹쳐 보일 수 있어요.</div></div>`;
+    <div class="calsub">· 아이폰: 새 창이 열리면 <b>아이폰 캘린더에 넣기</b> → <b>허용</b> → <b>모두 추가</b><br>· 갤럭시: 받은 파일을 눌러 캘린더 앱으로 열기<br>· 나중에 시각을 바꾸거나 지운 알림은 캘린더에서도 직접 고치거나 지워 주세요. 같은 알림을 두 번 넣으면 겹쳐 보일 수 있어요.</div></div>`;
 }
 
 /* ========== 알림 ========== */
