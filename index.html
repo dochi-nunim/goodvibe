@@ -137,6 +137,12 @@ mark{background:var(--yellow);color:var(--ink);padding:0 2px;border-radius:3px}
 .switch.on{background:var(--mint)}.switch.on::after{transform:translateX(21px)}
 .note{background:var(--paper);border:2px dashed var(--ink);border-radius:var(--r);padding:14px 16px;font-size:14px;line-height:1.6;color:#4a443b;margin:14px 0}
 .note b{color:var(--ink)}
+.note.cal{border-style:solid;background:var(--mint)}
+.note.cal .btn{width:100%;margin-top:12px}
+.calcount{margin-top:8px;font-weight:800;color:var(--ink)}
+.linkbtn{display:block;width:100%;margin-top:10px;padding:6px;background:none;border:0;color:var(--ink);font-size:14px;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.calsub{margin-top:10px;font-size:13px;color:#4a443b}
+.calrow{margin-top:8px}
 .status{display:inline-block;border-radius:8px;padding:2px 8px;font-size:12px;font-weight:800;border:2px solid var(--ink)}
 .status.ok{background:var(--mint)}.status.no{background:var(--coral)}.status.ask{background:var(--yellow)}
 
@@ -393,6 +399,7 @@ function renderReminders(){
   const perm=('Notification' in window)?Notification.permission:'unsupported';
   const standalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone;
   h+=`<div class="help">오늘 할 일의 알림을 받을 시간을 설정할 수 있습니다. 알림은 매일 발송됩니다. 각 할 일·루틴에는 따로 알림 시각을 넣을 수 있어요.</div>`;
+  h+=renderCalBox();
   h+=`<div class="rowhead"><b>리마인더 관리</b><button class="addbtn" data-act="addreminder">＋ 추가하기</button></div>`;
   const rs=db.reminders.slice().sort((a,b)=>a.time.localeCompare(b.time));
   if(!rs.length)h+=`<div class="empty">아직 설정된 시간이 없어요.</div>`;
@@ -402,7 +409,7 @@ function renderReminders(){
   if(perm==='default')h+=`<button class="btn" style="margin-top:10px;width:100%" data-act="askperm">알림 허용하기</button>`;
   if(perm==='denied')h+=`브라우저(또는 홈 화면 앱) 설정에서 알림을 다시 켜 주세요.`;
   h+=`</div>`;
-  h+=`<div class="note"><b>아이폰에서 알림 받는 법</b><br>1. Safari 공유 버튼 → <b>홈 화면에 추가</b><br>2. 홈 화면 아이콘으로 앱을 열고 이 화면에서 <b>알림 허용하기</b><br>3. ${standalone?'✅ 지금 홈 화면 앱으로 실행 중이에요.':'지금은 브라우저에서 열려 있어요. 홈 화면에 추가한 뒤 그 아이콘으로 열어야 알림이 와요.'}<br><br>알림은 앱이 켜져 있거나 최근에 열렸을 때 확인해서 보내요. 완전히 꺼진 상태에서 정확한 시각에 오게 하려면 나중에 서버(푸시)를 붙여야 해요.<br><button class="btn ghost" style="margin-top:10px;width:100%" data-act="testnoti">테스트 알림 보내기</button></div>`;
+  h+=`<div class="note"><b>아이폰에서 알림 받는 법</b><br>1. Safari 공유 버튼 → <b>홈 화면에 추가</b><br>2. 홈 화면 아이콘으로 앱을 열고 이 화면에서 <b>알림 허용하기</b><br>3. ${standalone?'✅ 지금 홈 화면 앱으로 실행 중이에요.':'지금은 브라우저에서 열려 있어요. 홈 화면에 추가한 뒤 그 아이콘으로 열어야 알림이 와요.'}<br><br>이 알림은 앱이 화면에 켜져 있을 때만 와요. 앱이 꺼져 있을 때도 정확한 시각에 받으려면 위의 <b>캘린더에 넣기</b>를 써 주세요.<br><button class="btn ghost" style="margin-top:10px;width:100%" data-act="testnoti">테스트 알림 보내기</button></div>`;
   return h;
 }
 
@@ -490,7 +497,8 @@ function renderSheet(){
      <div class="field"><label>날짜</label><input type="date" id="f_date" value="${d.date}">
        <div class="quick"><button type="button" data-quick="date" data-val="0">오늘</button><button type="button" data-quick="date" data-val="1">내일</button><button type="button" data-quick="date" data-val="7">일주일 뒤</button></div></div>
      <div class="field"><label>카테고리</label>${catPicker(d.catId)}<input type="hidden" id="f_cat" value="${d.catId||''}"></div>
-     <div class="field"><label>알림 (선택)</label><div class="row"><input type="datetime-local" id="f_remind" value="${d.remindAt||''}"><button type="button" class="btn ghost" style="flex:0 0 auto;padding:0 16px" data-quick="clearremind">지우기</button></div></div>
+     <div class="field"><label>알림 (선택)</label><div class="row"><input type="datetime-local" id="f_remind" value="${d.remindAt||''}"><button type="button" class="btn ghost" style="flex:0 0 auto;padding:0 16px" data-quick="clearremind">지우기</button></div>
+       <div class="calrow"><button type="button" class="btn ghost wide" data-act="cal_task" data-id="${t?t.id:''}">📅 이 알림 휴대폰 캘린더에 넣기</button></div></div>
      <div class="btns">${t?`<button class="btn danger" data-act="deltask" data-id="${t.id}">삭제</button>`:''}<button class="btn" data-act="savetask" data-id="${t?t.id:''}">저장</button></div>`;
   }else if(s.type==='routine'){
     const r=s.id?db.routines.find(x=>x.id===s.id):null;
@@ -504,7 +512,8 @@ function renderSheet(){
        <div class="quick"><button type="button" data-quick="end" data-val="30">한 달</button><button type="button" data-quick="end" data-val="90">3개월</button><button type="button" data-quick="end" data-val="365">1년</button><button type="button" data-quick="end" data-val="">기한 없음</button></div></div>
      <div class="field"><label>반복 요일</label><div class="days" id="f_days">${[1,2,3,4,5,6,0].map(k=>`<button type="button" data-day="${k}" class="${days.includes(k)?'on':''}">${DOW[k]}</button>`).join('')}</div>
        <div class="quick"><button type="button" data-quick="days" data-val="all">매일</button><button type="button" data-quick="days" data-val="wk">평일</button></div></div>
-     <div class="field"><label>매일 알림 시각 (선택)</label><div class="row"><input type="time" id="f_rtime" value="${d.remindTime||''}"><button type="button" class="btn ghost" style="flex:0 0 auto;padding:0 16px" data-quick="clearrtime">지우기</button></div></div>
+     <div class="field"><label>매일 알림 시각 (선택)</label><div class="row"><input type="time" id="f_rtime" value="${d.remindTime||''}"><button type="button" class="btn ghost" style="flex:0 0 auto;padding:0 16px" data-quick="clearrtime">지우기</button></div>
+       <div class="calrow"><button type="button" class="btn ghost wide" data-act="cal_routine" data-id="${r?r.id:''}">📅 이 알림 휴대폰 캘린더에 넣기</button></div></div>
      ${s.date&&r?`<div class="btns" style="margin-top:0"><button class="btn ghost" data-act="skiproutine" data-id="${r.id}" data-date="${s.date}">${kdateShort(s.date)}만 빼기</button><button class="btn ghost" data-act="endroutine" data-id="${r.id}" data-date="${s.date}">여기서 끝내기</button></div>`:''}
      <div class="btns">${r?`<button class="btn danger" data-act="delroutine" data-id="${r.id}">삭제</button>`:''}<button class="btn" data-act="saveroutine" data-id="${r?r.id:''}">저장</button></div>`;
   }else if(s.type==='rday'){
@@ -742,6 +751,19 @@ app.addEventListener('click',e=>{
     case 'togglereminder':{const r=db.reminders.find(x=>x.id===id);r.enabled=!r.enabled;save();render();if(r.enabled)ensurePermission();break;}
     case 'askperm':ensurePermission(true);break;
     case 'testnoti':notify('굿바이브','알림이 잘 와요 👍','test');break;
+    case 'cal_all':sendToCalendar(allCalEvents(),'all');break;
+    case 'cal_all_file':sendToCalendar(allCalEvents(),'all',true);break;
+    case 'cal_task':{
+      const remind=$('f_remind').value;if(!remind){toast('알림 시각을 먼저 정해 주세요');return;}
+      const title=$('f_title').value.trim()||'할 일';
+      sendToCalendar([taskEvent({id:id||'new'+uid(),title,remindAt:remind,catId:$('f_cat').value})],'todo');break;}
+    case 'cal_routine':{
+      const time=$('f_rtime').value;if(!time){toast('매일 알림 시각을 먼저 정해 주세요');return;}
+      const days=Array.from(document.querySelectorAll('#f_days button.on')).map(b=>+b.dataset.day);
+      if(!days.length){toast('반복 요일을 하나 이상 골라 주세요');return;}
+      const r={id:id||'new'+uid(),title:$('f_title').value.trim()||'루틴',catId:$('f_cat').value,start:$('f_start').value||today(),end:$('f_end').value||'',days,remindTime:time};
+      const ev=routineEvent(r);if(!ev){toast('기간이 이미 끝난 루틴이에요');return;}
+      sendToCalendar([ev],'routine');break;}
 
     case 'login':state.menu=false;render();login();break;
     case 'logout':if(confirm('로그아웃할까요? 이 기기의 데이터는 그대로 남아요.')){logout();state.menu=false;render();}break;
@@ -826,6 +848,68 @@ function pushNow(){
   return userRef().set({db:clean(db),updatedAt:db.updatedAt||Date.now(),email:fbUser.email||""}).catch(e=>toast("동기화 실패: "+e.message,4000));
 }
 initFirebase();
+
+/* ========== 휴대폰 캘린더로 알림 넘기기 ========== */
+// 웹앱은 화면이 꺼지면 휴대폰이 멈춰 세워서 정해진 시각에 알림을 보낼 수 없다.
+// 대신 일정+알림을 캘린더 파일(.ics)로 만들어 휴대폰 캘린더에 넣으면, 캘린더가 정확한 시각에 알려 준다. (서버 없음)
+const ICS_DAY=['SU','MO','TU','WE','TH','FR','SA'];
+const icsEsc=v=>String(v||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\r?\n/g,'\\n');
+// 한 줄이 75바이트를 넘으면 접는다 (한글은 3바이트)
+function icsFold(line){const enc=new TextEncoder();const out=[];let cur='',n=0;for(const ch of line){const b=enc.encode(ch).length;if(n+b>(out.length?74:75)){out.push(cur);cur='';n=0;}cur+=ch;n+=b;}out.push(cur);return out.join('\r\n ');}
+const icsLocal=(date,time)=>date.replace(/-/g,'')+'T'+time.slice(0,5).replace(':','')+'00';
+function icsPlus(date,time,min){const d=new Date(date+'T'+time.slice(0,5));d.setMinutes(d.getMinutes()+min);return fmt(d).replace(/-/g,'')+'T'+pad(d.getHours())+pad(d.getMinutes())+'00';}
+// 시각은 휴대폰의 현재 시간대를 그대로 따른다 (floating time). 알림은 일정 시작 시각에 울린다.
+function icsEvent({uid:key,date,time,title,desc,rrule,exdates}){
+  const L=['BEGIN:VEVENT','UID:'+key+'@goodvibe','DTSTAMP:'+new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,''),
+    'DTSTART:'+icsLocal(date,time),'DTEND:'+icsPlus(date,time,10),'SUMMARY:'+icsEsc(title),'DESCRIPTION:'+icsEsc(desc)];
+  if(rrule)L.push('RRULE:'+rrule);
+  (exdates||[]).forEach(d=>L.push('EXDATE:'+icsLocal(d,time)));
+  L.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc(title),'TRIGGER:PT0M','END:VALARM','END:VEVENT');
+  return L;
+}
+function dailyEvent(r){return icsEvent({uid:'d-'+r.id,date:today(),time:r.time,title:r.label||'오늘 할 일 확인',desc:'굿바이브를 열어 오늘 남은 할 일을 확인하세요.',rrule:'FREQ=DAILY'});}
+function taskEvent(x){const [d,tm]=x.remindAt.split('T');return icsEvent({uid:'t-'+x.id,date:d,time:tm,title:x.title,desc:'굿바이브 할 일 · '+((cat(x.catId)||{}).name||'')});}
+// 루틴: 오늘(또는 시작일) 이후 처음 해당하는 요일부터, 반복 요일마다, 끝나는 날까지. '이 날만 빼기' 한 날은 뺀다.
+function routineEvent(r){
+  if(!r.remindTime)return null;
+  let first=r.start&&r.start>today()?r.start:today();
+  for(let i=0;i<7&&!routineActiveOn(r,first);i++)first=addDays(first,1);
+  if(!routineActiveOn(r,first))return null;
+  const days=(r.days||[0,1,2,3,4,5,6]).slice().sort();
+  let rule=days.length===7?'FREQ=DAILY':'FREQ=WEEKLY;BYDAY='+days.map(d=>ICS_DAY[d]).join(',');
+  if(r.end)rule+=';UNTIL='+r.end.replace(/-/g,'')+'T235959';
+  const skips=Object.keys(db.routineSkip).filter(k=>k.startsWith(r.id+'|')).map(k=>k.slice(r.id.length+1)).filter(d=>d>=first);
+  return icsEvent({uid:'r-'+r.id,date:first,time:r.remindTime,title:r.title,desc:'굿바이브 루틴 · '+((cat(r.catId)||{}).name||''),rrule:rule,exdates:skips});
+}
+function calTargets(){
+  const nowMs=Date.now();
+  return {
+    daily:db.reminders.filter(r=>r.enabled),
+    routines:db.routines.filter(r=>routineEvent(r)),
+    tasks:db.tasks.filter(x=>x.remindAt&&!x.done&&new Date(x.remindAt).getTime()>nowMs),
+  };
+}
+function allCalEvents(){const c=calTargets();return [...c.daily.map(dailyEvent),...c.routines.map(routineEvent),...c.tasks.map(taskEvent)];}
+function buildIcs(events){return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//GoodVibe//KO','CALSCALE:GREGORIAN','METHOD:PUBLISH',...events.flat(),'END:VCALENDAR'].map(icsFold).join('\r\n')+'\r\n';}
+const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
+// 아이폰은 캘린더 화면으로 바로 연다 ('모두 추가'). 그 밖에는 파일로 받는다. asFile 이면 아이폰도 파일로 받는다.
+function sendToCalendar(events,name,asFile){
+  if(!events.length){toast('캘린더에 넣을 알림이 없어요. 리마인더나 할 일·루틴의 알림 시각을 먼저 정해 주세요.',4000);return;}
+  const ics=buildIcs(events);
+  if(isIOS()&&!asFile){location.href='data:text/calendar;charset=utf-8,'+encodeURIComponent(ics);return;}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar;charset=utf-8'}));
+  a.download='goodvibe-'+name+'-'+today()+'.ics';document.body.appendChild(a);a.click();a.remove();
+  toast(isIOS()?'파일 앱에 저장했어요. 파일을 눌러 캘린더에 추가해 주세요.':'캘린더 파일을 받았어요. 알림창이나 다운로드에서 파일을 눌러 캘린더 앱으로 열어 주세요.',5000);
+}
+function renderCalBox(){
+  const c=calTargets();
+  return `<div class="note cal"><b>📅 앱이 꺼져 있어도 정확한 시각에 알림 받기</b><br>
+    웹앱은 휴대폰 화면이 꺼지면 멈춰서, 정해진 시각에 알림을 보낼 수 없어요. 대신 알림을 <b>휴대폰 캘린더</b>에 넣어 두면 캘린더가 그 시각에 알려 줘요.
+    <div class="calcount">넣을 알림: 매일 리마인더 ${c.daily.length}개 · 루틴 ${c.routines.length}개 · 할 일 ${c.tasks.length}개</div>
+    <button class="btn" data-act="cal_all">알림 전부 캘린더에 넣기</button>
+    <button class="linkbtn" data-act="cal_all_file">캘린더가 안 열리면 파일로 받기</button>
+    <div class="calsub">· 아이폰: 캘린더 화면이 뜨면 <b>모두 추가</b><br>· 갤럭시: 받은 파일을 눌러 캘린더 앱으로 열기<br>· 나중에 시각을 바꾸거나 지운 알림은 캘린더에서도 직접 고치거나 지워 주세요. 같은 알림을 두 번 넣으면 겹쳐 보일 수 있어요.</div></div>`;
+}
 
 /* ========== 알림 ========== */
 let swReg=null;
