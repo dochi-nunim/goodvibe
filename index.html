@@ -140,6 +140,9 @@ mark{background:var(--yellow);color:var(--ink);padding:0 2px;border-radius:3px}
 .note.cal{border-style:solid;background:var(--mint)}
 .note.cal .btn{width:100%;margin-top:12px}
 .calcount{margin-top:8px;font-weight:800;color:var(--ink)}
+.calpick{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:15px;font-weight:700;color:var(--ink)}
+.calpick input{width:20px;height:20px;accent-color:#111}
+.calpick small{font-weight:500;color:#4a443b}
 .linkbtn{display:block;width:100%;margin-top:10px;padding:6px;background:none;border:0;color:var(--ink);font-size:14px;font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .calsub{margin-top:10px;font-size:13px;color:#4a443b}
 .calrow{margin-top:8px}
@@ -782,6 +785,10 @@ app.addEventListener('click',e=>{
       catch(e){toast('형식이 올바르지 않아요');}break;}
   }
 });
+app.addEventListener('change',e=>{
+  const k=e.target.dataset&&e.target.dataset.calpick;if(!k)return;
+  db.settings.calInclude=Object.assign(calPick(),{[k]:e.target.checked});save();render();
+});
 app.addEventListener('input',e=>{if(e.target.id==='q'){state.q=e.target.value;const r=$('results');if(r)r.innerHTML=renderResults();}});
 app.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&e.target.classList.contains('bigname')){e.preventDefault();const b=document.querySelector('.sheet .btn:not(.ghost):not(.danger)');b&&b.click();}
@@ -889,7 +896,8 @@ function calTargets(){
     tasks:db.tasks.filter(x=>x.remindAt&&!x.done&&new Date(x.remindAt).getTime()>nowMs),
   };
 }
-function allCalEvents(){const c=calTargets();return [...c.daily.map(dailyEvent),...c.routines.map(routineEvent),...c.tasks.map(taskEvent)];}
+const calPick=()=>Object.assign({daily:true,routines:false,tasks:true},db.settings.calInclude||{});
+function allCalEvents(){const c=calTargets(),p=calPick();return [...(p.daily?c.daily.map(dailyEvent):[]),...(p.routines?c.routines.map(routineEvent):[]),...(p.tasks?c.tasks.map(taskEvent):[])];}
 function buildIcs(events){return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//GoodVibe//KO','CALSCALE:GREGORIAN','METHOD:PUBLISH',...events.flat(),'END:VCALENDAR'].map(icsFold).join('\r\n')+'\r\n';}
 const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
 // 아이폰은 캘린더 화면으로 바로 연다 ('모두 추가'). 그 밖에는 파일로 받는다. asFile 이면 아이폰도 파일로 받는다.
@@ -905,8 +913,9 @@ function renderCalBox(){
   const c=calTargets();
   return `<div class="note cal"><b>📅 앱이 꺼져 있어도 정확한 시각에 알림 받기</b><br>
     웹앱은 휴대폰 화면이 꺼지면 멈춰서, 정해진 시각에 알림을 보낼 수 없어요. 대신 알림을 <b>휴대폰 캘린더</b>에 넣어 두면 캘린더가 그 시각에 알려 줘요.
-    <div class="calcount">넣을 알림: 매일 리마인더 ${c.daily.length}개 · 루틴 ${c.routines.length}개 · 할 일 ${c.tasks.length}개</div>
-    <button class="btn" data-act="cal_all">알림 전부 캘린더에 넣기</button>
+    <div class="calcount">캘린더에 넣을 알림 고르기</div>
+    ${[['daily','매일 리마인더','아래에 정한 시각, 매일'],['routines','루틴 알림','반복 요일마다'],['tasks','할 일 알림','정한 날짜·시각에 한 번']].map(([k,name,hint])=>`<label class="calpick"><input type="checkbox" data-calpick="${k}" ${calPick()[k]?'checked':''}><span>${name} ${c[k].length}개 <small>· ${hint}</small></span></label>`).join('')}
+    <button class="btn" data-act="cal_all">고른 알림 캘린더에 넣기</button>
     <button class="linkbtn" data-act="cal_all_file">캘린더가 안 열리면 파일로 받기</button>
     <div class="calsub">· 아이폰: 캘린더 화면이 뜨면 <b>모두 추가</b><br>· 갤럭시: 받은 파일을 눌러 캘린더 앱으로 열기<br>· 나중에 시각을 바꾸거나 지운 알림은 캘린더에서도 직접 고치거나 지워 주세요. 같은 알림을 두 번 넣으면 겹쳐 보일 수 있어요.</div></div>`;
 }
