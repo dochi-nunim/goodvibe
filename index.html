@@ -191,6 +191,8 @@ mark{background:var(--yellow);color:var(--ink);padding:0 2px;border-radius:3px}
 .btn.wide{width:100%}
 .quick{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .quick button{background:var(--paper);border:2px solid var(--ink);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:700}
+.quick.pick button.on{background:var(--yellow);box-shadow:2px 2px 0 var(--ink)}
+[hidden]{display:none!important}
 .quick button:active{background:var(--yellow)}
 .catpick{display:flex;flex-wrap:wrap;gap:8px}
 .catpick button{border-radius:10px;padding:8px 13px;font-weight:800;font-size:14px;border:var(--bw) solid var(--ink);color:var(--ink)!important;opacity:.55}
@@ -265,11 +267,31 @@ const cat=id=>db.categories.find(c=>c.id===id);
 const catColor=id=>(cat(id)||{}).color||'#999';
 
 /* ========== 항목 계산 ========== */
+// 몇 주째인지 (월요일 기준)
+const weekIndex=(a,b)=>Math.round((parse(monday(b))-parse(monday(a)))/604800000);
+// r.every: 1=매주, 2=2주마다, 3=3주마다, 'month'=매달 같은 날, 'year'=매년 같은 날
 function routineActiveOn(r,date){
   if(r.start&&date<r.start)return false;
   if(r.end&&date>r.end)return false;
+  const ev=r.every||1;
+  if(ev==='month'||ev==='year'){
+    const st=parse(r.start||date),d=parse(date);
+    if(ev==='year'&&st.getMonth()!==d.getMonth())return false;
+    const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+    return d.getDate()===Math.min(st.getDate(),last); // 그 달에 없는 날이면 그 달 마지막 날
+  }
   const dow=parse(date).getDay();
-  return (r.days||[0,1,2,3,4,5,6]).includes(dow);
+  if(!(r.days||[0,1,2,3,4,5,6]).includes(dow))return false;
+  if(ev>1&&r.start)return weekIndex(r.start,date)%ev===0;
+  return true;
+}
+function repeatText(r){
+  const ev=r.every||1,days=(r.days||[0,1,2,3,4,5,6]);
+  const st=parse(r.start||today());
+  if(ev==='month')return '매달 '+st.getDate()+'일';
+  if(ev==='year')return '매년 '+(st.getMonth()+1)+'월 '+st.getDate()+'일';
+  const dayTxt=days.length===7?'매일':days.length===5&&!days.includes(0)&&!days.includes(6)?'평일':[1,2,3,4,5,6,0].filter(d=>days.includes(d)).map(d=>DOW[d]).join('');
+  return ev>1?ev+'주마다 '+dayTxt:dayTxt;
 }
 function routineStatus(r){
   const t=today();
@@ -372,8 +394,7 @@ function renderRoutines(){
         <div class="list draglist" data-scope="routine" data-cat="${c.id}">`;
     rs.forEach(r=>{
       const [st,cls]=routineStatus(r);
-      const days=(r.days||[0,1,2,3,4,5,6]);
-      const rep=days.length===7?'매일':days.length===5&&!days.includes(0)&&!days.includes(6)?'평일':[1,2,3,4,5,6,0].filter(d=>days.includes(d)).map(d=>DOW[d]).join('');
+      const rep=repeatText(r);
       h+=`<div class="rt drag-item" data-id="${r.id}"><div class="body" data-act="editroutine" data-id="${r.id}">
         <div class="l1"><span class="st ${cls}">${st}</span><span class="sep">|</span>${esc(r.title)}</div>
         <div class="l2">${kdate(r.start)} ~ ${r.end?kdate(r.end):'기한 없음'} / ${rep}${r.remindTime?' / ⏰ '+r.remindTime:''}</div></div>
@@ -507,13 +528,16 @@ function renderSheet(){
     const r=s.id?db.routines.find(x=>x.id===s.id):null;
     const d=r||{title:'',memo:'',catId:s.catId||(db.categories[0]||{}).id,start:today(),end:'',days:[0,1,2,3,4,5,6],remindTime:''};
     const days=d.days||[0,1,2,3,4,5,6];
+    const every=d.every||1;const spanRepeat=(every==='month'||every==='year');
     inner=`<h3>${r?'루틴 편집':'루틴 추가'}</h3>
      <div class="field"><input class="bigname" id="f_title" type="text" placeholder="루틴 이름" value="${esc(d.title)}" autocomplete="off"></div>
      <div class="field"><label>기본 메모 (매일 똑같이 보여요 · 날짜별 메모는 홈에서 루틴을 탭)</label><textarea id="f_memo">${esc(d.memo)}</textarea></div>
      <div class="field"><label>카테고리</label>${catPicker(d.catId)}<input type="hidden" id="f_cat" value="${d.catId||''}"></div>
      <div class="field"><label>기간 (기한)</label><div class="row"><input type="date" id="f_start" value="${d.start}"><input type="date" id="f_end" value="${d.end||''}"></div>
        <div class="quick"><button type="button" data-quick="end" data-val="30">한 달</button><button type="button" data-quick="end" data-val="90">3개월</button><button type="button" data-quick="end" data-val="365">1년</button><button type="button" data-quick="end" data-val="">기한 없음</button></div></div>
-     <div class="field"><label>반복 요일</label><div class="days" id="f_days">${[1,2,3,4,5,6,0].map(k=>`<button type="button" data-day="${k}" class="${days.includes(k)?'on':''}">${DOW[k]}</button>`).join('')}</div>
+     <div class="field"><label>반복</label><div class="quick pick" id="f_every">${[[1,'매주'],[2,'2주마다'],[3,'3주마다'],['month','매달'],['year','매년']].map(([v,n])=>`<button type="button" data-every="${v}" class="${String(every)===String(v)?'on':''}">${n}</button>`).join('')}</div></div>
+     <div class="field" id="wrap_dom" ${spanRepeat?'':'hidden'}><label>반복 날짜</label><div class="help" style="margin:0">시작일과 같은 날마다 돌아와요. 그 달에 없는 날이면 그 달 마지막 날에 와요.</div></div>
+     <div class="field" id="wrap_days" ${spanRepeat?'hidden':''}><label>반복 요일</label><div class="days" id="f_days">${[1,2,3,4,5,6,0].map(k=>`<button type="button" data-day="${k}" class="${days.includes(k)?'on':''}">${DOW[k]}</button>`).join('')}</div>
        <div class="quick"><button type="button" data-quick="days" data-val="all">매일</button><button type="button" data-quick="days" data-val="wk">평일</button></div></div>
      <div class="field"><label>매일 알림 시각 (선택)</label><div class="row"><input type="time" id="f_rtime" value="${d.remindTime||''}"><button type="button" class="btn ghost" style="flex:0 0 auto;padding:0 16px" data-quick="clearrtime">지우기</button></div>
        <div class="calrow"><button type="button" class="btn ghost wide" data-act="cal_routine" data-id="${r?r.id:''}">📅 이 알림 휴대폰 캘린더에 넣기</button></div></div>
@@ -644,6 +668,7 @@ function toastUndo(msg,fn){
 
 /* ========== 이벤트 ========== */
 const $=id=>document.getElementById(id);
+function readEvery(){const b=document.querySelector('#f_every button.on');const v=b?b.dataset.every:'1';return (v==='month'||v==='year')?v:(+v||1);}
 function toast(msg,ms=2200){
   document.querySelectorAll('.toast').forEach(t=>t.remove());
   const t=document.createElement('div');t.className='toast';t.innerHTML=msg;document.body.appendChild(t);
@@ -659,6 +684,13 @@ app.addEventListener('click',e=>{
     pick.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===pick));
     if(kind==='cat')$('f_cat').value=pick.dataset.val;
     if(kind==='color')$('f_color').value=pick.dataset.val;
+    return;
+  }
+  const evb=e.target.closest('[data-every]');
+  if(evb){
+    evb.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===evb));
+    const span=evb.dataset.every==='month'||evb.dataset.every==='year';
+    $('wrap_days').hidden=span;$('wrap_dom').hidden=!span;
     return;
   }
   const dayb=e.target.closest('[data-day]');
@@ -717,11 +749,12 @@ app.addEventListener('click',e=>{
     case 'saveroutine':{
       const title=$('f_title').value.trim();if(!title){toast('루틴 이름을 입력해 주세요');$('f_title').focus();return;}
       const catId=$('f_cat').value;if(!catId){toast('카테고리를 골라 주세요');return;}
+      const every=readEvery();
       const days=Array.from(document.querySelectorAll('#f_days button.on')).map(b=>+b.dataset.day);
-      if(!days.length){toast('반복 요일을 하나 이상 골라 주세요');return;}
+      if(typeof every==='number'&&!days.length){toast('반복 요일을 하나 이상 골라 주세요');return;}
       const start=$('f_start').value||today();let end=$('f_end').value||'';
       if(end&&end<start){toast('종료일이 시작일보다 빨라요');return;}
-      const data={title,memo:$('f_memo').value.trim(),catId,start,end,days,remindTime:$('f_rtime').value||''};
+      const data={title,memo:$('f_memo').value.trim(),catId,start,end,days:days.length?days:[0,1,2,3,4,5,6],every,remindTime:$('f_rtime').value||''};
       let r=id?db.routines.find(x=>x.id===id):null;
       if(r)Object.assign(r,data);else{r={id:uid(),created:Date.now(),order:db.routines.length,...data};db.routines.push(r);}
       save();closeSheet();break;}
@@ -762,9 +795,10 @@ app.addEventListener('click',e=>{
       sendToCalendar([taskEvent({id:id||'new'+uid(),title,remindAt:remind,catId:$('f_cat').value})],'todo');break;}
     case 'cal_routine':{
       const time=$('f_rtime').value;if(!time){toast('매일 알림 시각을 먼저 정해 주세요');return;}
+      const every=readEvery();
       const days=Array.from(document.querySelectorAll('#f_days button.on')).map(b=>+b.dataset.day);
-      if(!days.length){toast('반복 요일을 하나 이상 골라 주세요');return;}
-      const r={id:id||'new'+uid(),title:$('f_title').value.trim()||'루틴',catId:$('f_cat').value,start:$('f_start').value||today(),end:$('f_end').value||'',days,remindTime:time};
+      if(typeof every==='number'&&!days.length){toast('반복 요일을 하나 이상 골라 주세요');return;}
+      const r={id:id||'new'+uid(),title:$('f_title').value.trim()||'루틴',catId:$('f_cat').value,start:$('f_start').value||today(),end:$('f_end').value||'',days:days.length?days:[0,1,2,3,4,5,6],every,remindTime:time};
       const ev=routineEvent(r);if(!ev){toast('기간이 이미 끝난 루틴이에요');return;}
       sendToCalendar([ev],'routine');break;}
 
@@ -880,10 +914,20 @@ function taskEvent(x){const [d,tm]=x.remindAt.split('T');return icsEvent({uid:'t
 function routineEvent(r){
   if(!r.remindTime)return null;
   let first=r.start&&r.start>today()?r.start:today();
-  for(let i=0;i<7&&!routineActiveOn(r,first);i++)first=addDays(first,1);
+  for(let i=0;i<400&&!routineActiveOn(r,first);i++)first=addDays(first,1);
   if(!routineActiveOn(r,first))return null;
-  const days=(r.days||[0,1,2,3,4,5,6]).slice().sort();
-  let rule=days.length===7?'FREQ=DAILY':'FREQ=WEEKLY;BYDAY='+days.map(d=>ICS_DAY[d]).join(',');
+  const ev=r.every||1;
+  let rule;
+  if(ev==='month'){
+    const dom=parse(r.start||first).getDate();
+    // 29~31일은 그 달에 없을 수 있어 "있는 날 중 마지막"으로 돌린다 (앱 표시와 맞춤)
+    rule=dom>=29?'FREQ=MONTHLY;BYMONTHDAY='+[28,29,30,31].filter(d=>d<=dom).join(',')+';BYSETPOS=-1':'FREQ=MONTHLY;BYMONTHDAY='+dom;
+  }
+  else if(ev==='year')rule='FREQ=YEARLY';
+  else{
+    const days=(r.days||[0,1,2,3,4,5,6]).slice().sort();
+    rule=(days.length===7&&ev===1)?'FREQ=DAILY':'FREQ=WEEKLY;WKST=MO'+(ev>1?';INTERVAL='+ev:'')+';BYDAY='+days.map(d=>ICS_DAY[d]).join(',');
+  }
   if(r.end)rule+=';UNTIL='+r.end.replace(/-/g,'')+'T235959';
   const skips=Object.keys(db.routineSkip).filter(k=>k.startsWith(r.id+'|')).map(k=>k.slice(r.id.length+1)).filter(d=>d>=first);
   return icsEvent({uid:'r-'+r.id,date:first,time:r.remindTime,title:r.title,desc:'굿바이브 루틴 · '+((cat(r.catId)||{}).name||''),rrule:rule,exdates:skips});
