@@ -75,6 +75,20 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .item .swbg{visibility:hidden;position:absolute;inset:0;display:flex;align-items:center;padding-left:14px;background:var(--mint);font-weight:800;font-size:14px;color:var(--ink);border-radius:12px}
 .item.swiping .swbg{visibility:visible}
 .item.ready .swbg{background:var(--yellow)}
+.item .swbg.left{justify-content:flex-end;padding:0 14px 0 0;background:var(--sky,#9fd3ff)}
+.item.swiping .swbg.left{visibility:hidden}
+.item.swiping.left .swbg{visibility:hidden}
+.item.swiping.left .swbg.left{visibility:visible}
+.overdue{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;margin:14px 0 2px;padding:12px 16px;background:var(--sky,#9fd3ff);border:var(--bw) solid var(--ink);border-radius:var(--r);box-shadow:var(--sh);font-size:14px;font-weight:700}
+.overdue:active{transform:translate(3px,3px);box-shadow:none}
+.overdue b{font-family:var(--display);font-weight:400;font-size:17px}
+.odrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.odrow .body{flex:1;min-width:0}
+.odrow .l0{font-size:12px;color:var(--muted);margin-bottom:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.odrow .l0 .chip{display:inline-block;border:2px solid var(--ink);border-radius:7px;padding:0 6px;font-weight:800;font-size:11px;color:var(--ink)}
+.odrow .l1{font-size:16px;line-height:1.35;word-break:break-word}
+.odrow .odbtn{flex:none;background:var(--yellow);border:2px solid var(--ink);border-radius:10px;padding:8px 12px;font-weight:800;font-size:13px;box-shadow:2px 2px 0 var(--ink)}
+.odrow .odbtn:active{transform:translate(2px,2px);box-shadow:none}
 .item.dragging .sw{background:var(--paper)}
 .toast .undo{margin-left:12px;background:var(--ink);color:#fff;border-radius:8px;padding:5px 10px;font-weight:800;font-size:13px}
 .item .chk{flex:none;width:28px;height:28px;margin-top:1px;border:var(--bw) solid var(--ink);border-radius:8px;background:var(--paper);display:flex;align-items:center;justify-content:center;transition:transform .12s}
@@ -321,6 +335,11 @@ function setDayOrder(date,ids){
   const prev=(db.dayOrder[date]||[]).filter(id=>!ids.includes(id));
   db.dayOrder[date]=prev.concat(ids);
 }
+// 오늘보다 앞선 날짜에 남아 있는 할 일 (루틴은 그날로 끝나므로 뺀다)
+function overdueTasks(){
+  const t=today();
+  return db.tasks.filter(x=>!x.done&&x.date<t).sort((a,b)=>a.date.localeCompare(b.date)||a.created-b.created);
+}
 function undoneCount(date){return itemsFor(date).filter(i=>!i.done).length;}
 
 /* ========== SVG ========== */
@@ -367,13 +386,16 @@ function renderHome(){
       <div class="badge ${n?'':'zero'}" style="background:${n?color:'#fff'}"><div class="n">${n}</div></div>
       <div class="num ${cls}">${parse(d).getDate()}</div></div>`;
   }).join('')+`</div>`;
+  const od=overdueTasks();
+  if(od.length&&state.date===today())
+    h+=`<button class="overdue" data-act="overdue"><b>안 끝난 지난 할 일 ${od.length}개</b><span>오늘로 가져오기 ›</span></button>`;
   const items=itemsFor(state.date);
   db.categories.forEach(c=>{
     const list=sortItems(items.filter(i=>i.catId===c.id),state.date);
     h+=`<div class="cat"><div class="cathead" style="background:${c.color}"><span>${esc(c.name)}</span><button class="plus" data-act="addtask" data-cat="${c.id}">+</button></div>
         <div class="list draglist" data-scope="day" data-cat="${c.id}">`;
     list.forEach(it=>{
-      h+=`<div class="item drag-item ${it.done?'done nodrag':''}" data-id="${it.id}" data-kind="${it.kind}"><div class="swbg">${it.kind==='routine'?'오늘만 건너뛰기 →':'내일로 →'}</div><div class="sw">
+      h+=`<div class="item drag-item ${it.done?'done nodrag':''}" data-id="${it.id}" data-kind="${it.kind}"><div class="swbg">${it.kind==='routine'?'오늘만 건너뛰기 →':'내일로 →'}</div>${it.kind==='task'&&state.date!==today()?'<div class="swbg left">← 오늘로</div>':''}<div class="sw">
         <button class="chk" data-act="toggle" data-id="${it.id}"></button>
         <div class="body" data-act="open" data-id="${it.id}"><div class="ttl">${esc(it.title)}${it.kind==='routine'?'<span class="tag">루틴</span>':''}${it.remind&&!it.done?'<span class="tag">⏰</span>':''}</div>${it.memo?`<div class="memo">${esc(it.memo)}</div>`:''}</div>
         <div class="handle">≡</div></div></div>`;
@@ -550,6 +572,16 @@ function renderSheet(){
      <div class="field"><label>이 날의 메모 (이 날에만 남아요)</label><textarea id="f_note" placeholder="${esc(r.memo||'예) 오늘 특이사항')}">${esc(note!=null?note:(r.memo||''))}</textarea></div>
      <div class="btns" style="margin-top:0"><button class="btn ghost" data-act="skiproutine" data-id="${r.id}" data-date="${s.date}">이 날만 빼기</button><button class="btn ghost" data-act="editroutine" data-id="${r.id}" data-date="${s.date}">루틴 설정</button></div>
      <div class="btns"><button class="btn" data-act="savernote" data-id="${r.id}" data-date="${s.date}">저장</button></div>`;
+  }else if(s.type==='overdue'){
+    const od=overdueTasks();
+    inner=`<h3>안 끝난 지난 할 일<small class="h3sub">${od.length}개</small></h3>`;
+    if(!od.length)inner+=`<div class="empty">남아 있는 지난 할 일이 없어요.</div>`;
+    else{
+      inner+=od.map(x=>{const c=cat(x.catId)||{};
+        return `<div class="odrow"><div class="body" data-act="open" data-id="${x.id}"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span>${kdateShort(x.date)} · ${daysAgo(x.date)}</div><div class="l1">${esc(x.title)}</div></div><button class="odbtn" data-act="pullone" data-id="${x.id}">오늘 하기</button></div>`;
+      }).join('');
+      inner+=`<div class="btns"><button class="btn" data-act="pullall">${od.length}개 모두 오늘로</button></div>`;
+    }
   }else if(s.type==='cat'){
     const c=s.id?cat(s.id):null;
     const d=c||{name:'',color:PALETTE[db.categories.length%PALETTE.length]};
@@ -628,6 +660,8 @@ function bindSwipe(){
       if(e.target.closest('.handle,.chk'))return;
       const item=e.target.closest('.item');if(!item||item.classList.contains('done'))return;
       const sw=item.querySelector('.sw');const x0=e.clientX,y0=e.clientY,pid=e.pointerId;let dx=0,active=false;
+      // 오늘이 아닌 날의 할 일만 왼쪽으로 밀어 오늘로 가져올 수 있다 (루틴은 못 옮김)
+      const canPull=item.dataset.kind==='task'&&state.date!==today();
       const off=()=>{item.removeEventListener('pointermove',move);item.removeEventListener('pointerup',up);item.removeEventListener('pointercancel',up);};
       const move=ev=>{
         const mx=ev.clientX-x0,my=ev.clientY-y0;
@@ -636,12 +670,16 @@ function bindSwipe(){
           else if(Math.abs(my)>10){off();return;}
           else return;
         }
-        dx=Math.max(0,mx);sw.style.transform=`translateX(${dx}px)`;item.classList.toggle('ready',dx>90);
+        dx=canPull?mx:Math.max(0,mx);
+        sw.style.transform=`translateX(${dx}px)`;
+        item.classList.toggle('left',dx<0);
+        item.classList.toggle('ready',Math.abs(dx)>90);
       };
       const up=()=>{
         off();if(!active)return;
         swipedAt=Date.now();item.classList.remove('swiping');
         if(dx>90){postpone(item.dataset.id);return;}
+        if(canPull&&dx<-90){pullToToday([item.dataset.id]);return;}
         sw.style.transform='';item.classList.remove('ready');
       };
       item.addEventListener('pointermove',move);item.addEventListener('pointerup',up);item.addEventListener('pointercancel',up);
@@ -657,6 +695,17 @@ function postpone(id){
     const t=db.tasks.find(x=>x.id===id);if(!t)return;const to=addDays(t.date,1);t.date=to;save();render();
     toastUndo(`${kdateShort(to)}로 미뤘어요`,()=>{t.date=from;save();render();});
   }
+}
+function daysAgo(d){const n=Math.round((parse(today())-parse(d))/86400000);return n<=0?'오늘':n===1?'어제':n+'일 지남';}
+// 할 일을 오늘로 가져온다
+function pullToToday(ids){
+  const t=today();const was=[];
+  ids.forEach(id=>{const x=db.tasks.find(v=>v.id===id);if(x&&x.date!==t){was.push([x,x.date]);x.date=t;}});
+  if(!was.length)return;
+  save();state.date=t;
+  if(state.sheet&&state.sheet.type==='overdue'&&!overdueTasks().length)state.sheet=null;
+  render();
+  toastUndo(was.length===1?'오늘로 가져왔어요':was.length+'개를 오늘로 가져왔어요',()=>{was.forEach(([x,d])=>x.date=d);save();render();});
 }
 function toastUndo(msg,fn){
   document.querySelectorAll('.toast').forEach(t=>t.remove());
@@ -810,6 +859,9 @@ app.addEventListener('click',e=>{
       else if(el.dataset.kind==='rnote'){state.date=el.dataset.date;state.view='home';openSheet({type:'rday',id,date:el.dataset.date});}
       else{state.view='routines';openSheet({type:'routine',id});}
       break;}
+    case 'overdue':openSheet({type:'overdue'});break;
+    case 'pullone':pullToToday([id]);break;
+    case 'pullall':pullToToday(overdueTasks().map(x=>x.id));break;
     case 'closesheet':closeSheet();break;
     case 'copybk':navigator.clipboard.writeText($('bk').value).then(()=>toast('복사했어요')).catch(()=>{$('bk').select();toast('길게 눌러 복사해 주세요');});break;
     case 'dlbk':{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(db)],{type:'application/json'}));a.download=`dayplanner-${today()}.json`;a.click();break;}
