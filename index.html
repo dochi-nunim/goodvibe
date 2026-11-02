@@ -228,6 +228,9 @@ mark{background:var(--yellow);color:var(--ink);padding:0 2px;border-radius:3px}
 .fab{position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(20px + env(safe-area-inset-bottom));width:58px;height:58px;border-radius:16px;background:var(--yellow);color:var(--ink);border:var(--bw) solid var(--ink);box-shadow:4px 4px 0 var(--ink);font-size:32px;display:flex;align-items:center;justify-content:center;z-index:10;font-family:system-ui,sans-serif}
 .fab:active{transform:translate(3px,3px);box-shadow:none}
 @media (min-width:600px){.fab{right:calc(50% - 260px + 16px)}}
+.warn{background:#fff3c4;border:var(--bw) solid var(--ink);box-shadow:var(--sh2);border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.55;margin:4px 3px 16px 0}
+.sec{font-weight:800;font-size:15px;margin:24px 0 4px}
+.btn.mini{flex:0 0 auto;padding:9px 14px;font-size:14px;box-shadow:var(--sh2)}
 .backup textarea{width:100%;min-height:160px;border-radius:12px;border:var(--bw) solid var(--ink);background:var(--paper);padding:12px;font-family:ui-monospace,monospace;font-size:12px}
 </style>
 </head>
@@ -256,7 +259,52 @@ if(!db){db=defaultDB();save();}
 for(const k of ['tasks','routines','categories','reminders'])db[k]=db[k]||[];
 for(const k of ['routineDone','routineSkip','routineNotes','dayOrder','notified','settings'])db[k]=db[k]||{};
 db.categories.forEach(c=>{if(OLD_COLORS[c.color])c.color=OLD_COLORS[c.color];});
-function save(){db.updatedAt=Date.now();localStorage.setItem(KEY,JSON.stringify(db));schedulePush();}
+/* ===== 되살리기 지점: 저장할 때마다 바로 앞 내용을 따로 보관 ===== */
+const HKEY='dayplanner.hist';
+function histRead(){try{return JSON.parse(localStorage.getItem(HKEY))||[];}catch(e){return [];}}
+// 하루 안의 것은 다 남기고, 그보다 앞선 것은 날마다 하나씩만 45일까지
+function histPrune(list){
+  const now=Date.now();const seen={};const out=[];
+  list.forEach(s=>{
+    if(!s||!s.t||!s.s)return;
+    if(now-s.t<86400000){out.push(s);return;}
+    if(now-s.t>45*86400000)return;
+    if(seen[s.d])return;
+    seen[s.d]=1;out.push(s);
+  });
+  return out.slice(0,40);
+}
+function histWrite(list){
+  for(let i=0;i<8;i++){
+    try{localStorage.setItem(HKEY,JSON.stringify(list));return true;}
+    catch(e){
+      if(list.length<2){try{localStorage.removeItem(HKEY);}catch(e2){}return false;}
+      list=list.slice(0,Math.floor(list.length/2));
+    }
+  }
+  return false;
+}
+function pushHist(prev,force){
+  if(!prev)return;
+  try{
+    const list=histRead();const last=list[0];const t=Date.now();const d=today();
+    if(!force&&last&&t-last.t<300000&&last.d===d)return;   // 5분 안에는 한 번만 (되살릴 때는 무조건 남긴다)
+    list.unshift({t,d,s:prev});
+    histWrite(histPrune(list));
+  }catch(e){}
+}
+function save(){
+  const prev=localStorage.getItem(KEY);
+  db.updatedAt=Date.now();
+  const next=JSON.stringify(db);
+  if(prev&&prev!==next)pushHist(prev);
+  try{localStorage.setItem(KEY,next);}
+  catch(e){
+    try{localStorage.removeItem(HKEY);localStorage.setItem(KEY,next);}
+    catch(e2){alert('저장 공간이 부족해 저장하지 못했어요. 백업 화면에서 내용을 복사해 두세요.');}
+  }
+  schedulePush();
+}
 
 /* ========== 날짜 도우미 ========== */
 const pad=n=>String(n).padStart(2,'0');
@@ -489,12 +537,40 @@ function renderResults(){
     h+=`<div class="rt hit ${x.done?'done':''}" data-act="openhit" data-kind="task" data-id="${x.id}"><div class="body"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span>${dlabel(x.date)}${x.done?' · 완료':''}</div><div class="l1">${hlText(x.title,q)}</div>${memoLines(x.memo).length?`<div class="l2">${memoLines(x.memo).map(y=>hlText(y,q)).join('<br>')}</div>`:''}</div><span class="chev">›</span></div>`;});
   return h;
 }
+function histWhen(t){const d=new Date(t);return `${d.getMonth()+1}월 ${d.getDate()}일 ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+function histSum(s){
+  try{const j=JSON.parse(s);return `할 일 ${(j.tasks||[]).length}개 · 루틴 ${(j.routines||[]).length}개 · 날짜별 메모 ${Object.keys(j.routineNotes||{}).length}개`;}
+  catch(e){return '내용을 읽을 수 없음';}
+}
+function applyRestore(str){
+  pushHist(localStorage.getItem(KEY),true);   // 되살리기 전 상태를 꼭 남겨서 되돌아올 수 있게
+  let j;try{j=JSON.parse(str);}catch(e){toast('사본을 읽을 수 없어요');return;}
+  if(!j||!Array.isArray(j.tasks)||!Array.isArray(j.categories)){toast('사본 형식이 올바르지 않아요');return;}
+  db=j;
+  for(const k of ['tasks','routines','categories','reminders'])db[k]=db[k]||[];
+  for(const k of ['routineDone','routineSkip','routineNotes','dayOrder','notified','settings'])db[k]=db[k]||{};
+  db.gone={};db.goneReset=Date.now();   // 지웠던 것까지 되살리고, 다른 기기의 삭제 기록이 다시 지우지 못하게
+  db.settings.cloudSnapDay='';
+  save();state.view='home';state.snaps=null;render();toast('되살렸어요');
+}
 function renderBackup(){
   let h=topbar('백업');
-  h+=`<div class="help">아래 내용을 복사해 두면 다른 기기나 브라우저에서 그대로 복원할 수 있어요.</div>`;
-  h+=`<div class="backup"><textarea id="bk" spellcheck="false">${esc(JSON.stringify(db))}</textarea>
-  <div class="btns"><button class="btn ghost" data-act="copybk">복사하기</button><button class="btn" data-act="restorebk">붙여넣은 내용으로 복원</button></div>
-  <div class="btns"><button class="btn ghost" data-act="dlbk">파일로 저장</button></div></div>`;
+  if(!fbUser)h+=`<div class="warn">지금은 <b>이 기기에만</b> 저장돼요. 브라우저 데이터가 지워지면 되살릴 수 없어요. 메뉴에서 <b>구글로 로그인</b>하면 클라우드에도 사본이 남아요.</div>`;
+  const lb=db.settings.lastBackup;
+  h+=`<div class="help">파일로 저장해 두면 어떤 경우에도 되살릴 수 있어요. ${lb?`마지막 저장: ${kdate(lb)}`:'아직 파일로 저장한 적이 없어요.'}</div>`;
+  h+=`<div class="backup"><div class="btns" style="margin-top:0"><button class="btn" data-act="dlbk">파일로 저장</button></div>
+  <div class="btns"><button class="btn ghost" data-act="copybk">내용 복사</button><button class="btn ghost" data-act="restorebk">붙여넣어 되살리기</button></div>
+  <textarea id="bk" spellcheck="false">${esc(JSON.stringify(db))}</textarea></div>`;
+  const list=histRead();
+  h+=`<div class="sec">이 기기에 자동 보관된 되살리기 지점</div>`;
+  h+=`<div class="help" style="margin:0 0 10px">내용이 바뀔 때마다 바로 앞 상태를 자동으로 남겨 둬요. 오늘 것은 모두, 그 앞은 날마다 하나씩 45일 보관해요.</div>`;
+  if(!list.length)h+=`<div class="empty">아직 보관된 지점이 없어요.</div>`;
+  else h+=list.map((s,i)=>`<div class="rt"><div class="body"><div class="l1">${histWhen(s.t)}</div><div class="l2">${histSum(s.s)}</div></div><button class="btn mini" data-act="histback" data-id="${i}">되살리기</button></div>`).join('');
+  h+=`<div class="sec">클라우드 날짜별 사본</div>`;
+  if(!fbUser)h+=`<div class="empty">로그인하면 하루에 한 번 사본이 올라가요.</div>`;
+  else if(!state.snaps)h+=`<div class="btns"><button class="btn ghost" data-act="loadsnaps">사본 목록 불러오기</button></div>`;
+  else if(!state.snaps.length)h+=`<div class="empty">아직 올라간 사본이 없어요. 내일부터 하루에 하나씩 쌓여요.</div>`;
+  else h+=state.snaps.map(k=>`<div class="rt"><div class="body"><div class="l1">${kdate(k.d)}</div><div class="l2">${histSum(k.s)}</div></div><button class="btn mini" data-act="snapback" data-id="${k.d}">되살리기</button></div>`).join('');
   return h;
 }
 
@@ -790,7 +866,7 @@ app.addEventListener('click',e=>{
       if(t)Object.assign(t,data);else{t={id:uid(),created:Date.now(),done:false,doneAt:0,...data};db.tasks.push(t);}
       if(data.remindAt)delete db.notified['t|'+t.id];
       state.date=data.date;save();closeSheet();break;}
-    case 'deltask':if(confirm('이 할 일을 삭제할까요?')){db.tasks=db.tasks.filter(x=>x.id!==id);save();closeSheet();}break;
+    case 'deltask':if(confirm('이 할 일을 삭제할까요?')){markGone(id);db.tasks=db.tasks.filter(x=>x.id!==id);save();closeSheet();}break;
 
     case 'addroutine':openSheet({type:'routine',catId:el.dataset.cat});break;
     case 'editroutine':openSheet({type:'routine',id,date:el.dataset.date});break;
@@ -807,7 +883,7 @@ app.addEventListener('click',e=>{
       let r=id?db.routines.find(x=>x.id===id):null;
       if(r)Object.assign(r,data);else{r={id:uid(),created:Date.now(),order:db.routines.length,...data};db.routines.push(r);}
       save();closeSheet();break;}
-    case 'delroutine':if(confirm('이 루틴을 삭제할까요? 지난 기록도 함께 지워져요.')){db.routines=db.routines.filter(x=>x.id!==id);Object.keys(db.routineDone).forEach(k=>{if(k.startsWith(id+'|'))delete db.routineDone[k];});Object.keys(db.routineNotes).forEach(k=>{if(k.startsWith(id+'|'))delete db.routineNotes[k];});save();closeSheet();}break;
+    case 'delroutine':if(confirm('이 루틴을 삭제할까요? 지난 기록도 함께 지워져요.')){markGone(id);db.routines=db.routines.filter(x=>x.id!==id);Object.keys(db.routineDone).forEach(k=>{if(k.startsWith(id+'|'))delete db.routineDone[k];});Object.keys(db.routineNotes).forEach(k=>{if(k.startsWith(id+'|'))delete db.routineNotes[k];});save();closeSheet();}break;
     case 'skiproutine':db.routineSkip[id+'|'+el.dataset.date]=true;save();closeSheet();toast('이 날만 뺐어요');break;
     case 'endroutine':{const r=db.routines.find(x=>x.id===id);if(r&&confirm(`${kdateShort(el.dataset.date)}까지만 하고 끝낼까요?`)){r.end=el.dataset.date;save();closeSheet();}break;}
 
@@ -822,7 +898,7 @@ app.addEventListener('click',e=>{
     case 'delcat':{
       const nT=db.tasks.filter(t=>t.catId===id).length,nR=db.routines.filter(r=>r.catId===id).length;
       if(nT||nR){alert(`이 카테고리에 할 일 ${nT}개, 루틴 ${nR}개가 있어요. 먼저 다른 카테고리로 옮기거나 지워 주세요.`);return;}
-      if(confirm('이 카테고리를 삭제할까요?')){db.categories=db.categories.filter(c=>c.id!==id);save();closeSheet();}break;}
+      if(confirm('이 카테고리를 삭제할까요?')){markGone(id);db.categories=db.categories.filter(c=>c.id!==id);save();closeSheet();}break;}
 
     case 'addreminder':openSheet({type:'reminder'});break;
     case 'editreminder':openSheet({type:'reminder',id});break;
@@ -832,7 +908,7 @@ app.addEventListener('click',e=>{
       let r=id?db.reminders.find(x=>x.id===id):null;
       if(r)Object.assign(r,{time,label});else db.reminders.push({id:uid(),time,label,enabled:true});
       save();closeSheet();ensurePermission();break;}
-    case 'delreminder':db.reminders=db.reminders.filter(x=>x.id!==id);save();closeSheet();break;
+    case 'delreminder':markGone(id);db.reminders=db.reminders.filter(x=>x.id!==id);save();closeSheet();break;
     case 'togglereminder':{const r=db.reminders.find(x=>x.id===id);r.enabled=!r.enabled;save();render();if(r.enabled)ensurePermission();break;}
     case 'askperm':ensurePermission(true);break;
     case 'testnoti':notify('굿바이브','알림이 잘 와요 👍','test');break;
@@ -863,12 +939,16 @@ app.addEventListener('click',e=>{
     case 'pullone':pullToToday([id]);break;
     case 'pullall':pullToToday(overdueTasks().map(x=>x.id));break;
     case 'closesheet':closeSheet();break;
+    case 'histback':{const l=histRead();const s=l[+id];if(!s)return;if(!confirm(histWhen(s.t)+' 상태로 되살릴까요?\n지금 내용도 되살리기 지점으로 남아서 다시 돌아올 수 있어요.'))return;applyRestore(s.s);break;}
+    case 'loadsnaps':loadCloudSnaps();break;
+    case 'snapback':{const k=(state.snaps||[]).find(x=>x.d===id);if(!k)return;if(!confirm(kdate(k.d)+' 사본으로 되살릴까요?\n지금 내용도 되살리기 지점으로 남아요.'))return;applyRestore(k.s);break;}
     case 'copybk':navigator.clipboard.writeText($('bk').value).then(()=>toast('복사했어요')).catch(()=>{$('bk').select();toast('길게 눌러 복사해 주세요');});break;
-    case 'dlbk':{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(db)],{type:'application/json'}));a.download=`dayplanner-${today()}.json`;a.click();break;}
+    case 'dlbk':{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(db)],{type:'application/json'}));a.download=`dayplanner-${today()}.json`;a.click();db.settings.lastBackup=today();save();render();break;}
     case 'restorebk':{
-      try{const j=JSON.parse($('bk').value);if(!j.categories||!Array.isArray(j.tasks))throw 0;
-        if(confirm('지금 데이터를 붙여넣은 내용으로 바꿀까요?')){db=j;for(const k of ['tasks','routines','categories','reminders'])db[k]=db[k]||[];for(const k of ['routineDone','routineSkip','routineNotes','dayOrder','notified','settings'])db[k]=db[k]||{};save();state.view='home';render();toast('복원했어요');}}
-      catch(e){toast('형식이 올바르지 않아요');}break;}
+      let j;try{j=JSON.parse($('bk').value);}catch(e){toast('형식이 올바르지 않아요');return;}
+      if(!j||!j.categories||!Array.isArray(j.tasks)){toast('형식이 올바르지 않아요');return;}
+      if(confirm('지금 데이터를 붙여넣은 내용으로 바꿀까요?\n지금 내용도 되살리기 지점으로 남아요.'))applyRestore($('bk').value);
+      break;}
   }
 });
 app.addEventListener('change',e=>{
@@ -904,41 +984,108 @@ function login(){
 function logout(){stopSync();firebase.auth().signOut();}
 function userRef(){return fbDb.collection("users").doc(fbUser.uid);}
 function clean(o){return JSON.parse(JSON.stringify(o));}
-// 처음 로그인한 기기: 서버 데이터와 이 기기 데이터를 합친다 (id 기준, 같은 이름 카테고리는 하나로)
+/* ===== 두 기기 내용 합치기: 한쪽에만 있는 건 절대 지우지 않는다 ===== */
+function markGone(id){db.gone=db.gone||{};db.gone[id]=Date.now();}
+function gonePrune(g,reset){
+  const now=Date.now();const out={};
+  Object.keys(g||{}).forEach(k=>{const t=g[k];if(typeof t!=='number')return;if(t<=reset)return;if(now-t>180*86400000)return;out[k]=t;});
+  return out;
+}
 function mergeDb(r,l){
-  const out=Object.assign({},l,r);
+  const rNew=(r.updatedAt||0)>=(l.updatedAt||0);
+  const a=rNew?r:l,b=rNew?l:r;            // a = 더 최근 쪽. 같은 칸이 겹치면 a가 이긴다
+  const out=Object.assign({},b,a);
+  const reset=Math.max(r.goneReset||0,l.goneReset||0);
+  out.goneReset=reset;
+  out.gone=gonePrune(Object.assign({},l.gone||{},r.gone||{}),reset);
+  const dead=id=>Object.prototype.hasOwnProperty.call(out.gone,id);
   const catMap={};
-  out.categories=(r.categories||[]).slice();
-  (l.categories||[]).forEach(c=>{
+  out.categories=(a.categories||[]).slice();
+  (b.categories||[]).forEach(c=>{
     const same=out.categories.find(x=>x.id===c.id)||out.categories.find(x=>x.name===c.name);
     if(same)catMap[c.id]=same.id;else out.categories.push(c);
   });
-  const union=(a,b)=>{const ids=new Set((a||[]).map(x=>x.id));return (a||[]).concat((b||[]).filter(x=>!ids.has(x.id)).map(x=>Object.assign({},x,{catId:catMap[x.catId]||x.catId})));};
-  out.tasks=union(r.tasks,l.tasks);out.routines=union(r.routines,l.routines);
-  const ids=new Set((r.reminders||[]).map(x=>x.id));out.reminders=(r.reminders||[]).concat((l.reminders||[]).filter(x=>!ids.has(x.id)));
-  for(const k of ["routineDone","routineSkip","routineNotes","dayOrder","notified","settings"])out[k]=Object.assign({},l[k]||{},r[k]||{});
+  out.categories=out.categories.filter(c=>!dead(c.id));
+  const union=(p,q)=>{
+    const ids=new Set((p||[]).map(x=>x.id));
+    return (p||[]).concat((q||[]).filter(x=>!ids.has(x.id)).map(x=>Object.assign({},x,{catId:catMap[x.catId]||x.catId}))).filter(x=>x&&x.id&&!dead(x.id));
+  };
+  out.tasks=union(a.tasks,b.tasks);
+  out.routines=union(a.routines,b.routines);
+  out.reminders=union(a.reminders,b.reminders);
+  for(const k of ["routineDone","routineSkip","routineNotes","dayOrder","notified","settings"])out[k]=Object.assign({},b[k]||{},a[k]||{});
+  const live=new Set(out.routines.map(x=>x.id));
+  ["routineDone","routineSkip","routineNotes"].forEach(k=>{
+    Object.keys(out[k]).forEach(key=>{const i=key.lastIndexOf('|');if(i<0)return;if(!live.has(key.slice(0,i)))delete out[k][key];});
+  });
+  out.updatedAt=Math.max(r.updatedAt||0,l.updatedAt||0);
   return out;
 }
+
 async function startSync(){
   fbState="syncing";render();
-  const ref=userRef();const mergedKey="dayplanner.merged."+fbUser.uid;
+  const ref=userRef();
   try{
     const snap=await ref.get();
-    if(!snap.exists){await pushNow();}
-    else if(!localStorage.getItem(mergedKey)){db=mergeDb(snap.data().db||{},db);save();await pushNow();}
-    localStorage.setItem(mergedKey,"1");
+    if(!snap.exists)await pushNow();
+    else{db=mergeDb((snap.data()||{}).db||{},db);save();await pushNow();}
   }catch(e){console.warn("first sync",e);}
   unsubSnap=ref.onSnapshot(s=>{
     if(!s.exists||s.metadata.hasPendingWrites)return;
-    const d=s.data();
-    if(d.updatedAt&&d.updatedAt>(db.updatedAt||0)){db=d.db;localStorage.setItem(KEY,JSON.stringify(db));render();}
-  });
-  fbState="on";render();toast("기기 연동이 켜졌어요");
+    const d=s.data();if(!d||!d.db)return;
+    const merged=mergeDb(d.db,db);
+    const sameAsMine=JSON.stringify(Object.assign({},merged,{updatedAt:0}))===JSON.stringify(Object.assign({},db,{updatedAt:0}));
+    if(sameAsMine)return;
+    db=merged;save();render();
+  },e=>console.warn("snapshot",e));
+  fbState="on";render();dailyCloudSnap();toast("기기 연동이 켜졌어요");
 }
 function stopSync(){if(unsubSnap){unsubSnap();unsubSnap=null;}fbState="idle";}
 function pushNow(){
   if(!fbUser||!fbDb)return Promise.resolve();
-  return userRef().set({db:clean(db),updatedAt:db.updatedAt||Date.now(),email:fbUser.email||""}).catch(e=>toast("동기화 실패: "+e.message,4000));
+  const ref=userRef();
+  const body=()=>({db:clean(db),updatedAt:db.updatedAt||Date.now(),email:fbUser.email||""});
+  const only={mergeFields:["db","updatedAt","email"]};
+  const plain=()=>ref.set(body(),only);
+  // 올리기 전에 서버 내용을 먼저 읽어 합친다: 다른 기기가 적어 둔 것을 덮어쓰지 않게
+  return fbDb.runTransaction(tx=>tx.get(ref).then(s=>{
+    const rd=s.exists&&s.data()&&s.data().db;
+    if(rd){
+      const m=mergeDb(rd,db);
+      if(JSON.stringify(Object.assign({},m,{updatedAt:0}))!==JSON.stringify(Object.assign({},db,{updatedAt:0}))){
+        db=m;try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){}
+      }
+    }
+    tx.set(ref,body(),only);
+  })).then(()=>{render();}).catch(()=>plain().catch(e=>toast("동기화 실패: "+e.message,4000)));
+}
+/* 하루에 한 번 그날 사본을 클라우드에 따로 남긴다 (덮어써도 날짜별로 되살릴 수 있게) */
+async function dailyCloudSnap(){
+  if(!fbUser||!fbDb)return;
+  const d=today();
+  if((db.settings.cloudSnapDay||"")===d)return;
+  const body=JSON.stringify(db);
+  if(body.length>300000)return;
+  try{
+    const ref=userRef();const s=await ref.get();
+    const snaps=Object.assign({},(s.exists&&s.data().snaps)||{});
+    snaps[d]=body;
+    const keys=Object.keys(snaps).sort();
+    let total=keys.reduce((n,k)=>n+(snaps[k]||"").length,0);
+    while(keys.length>10||total>700000){const k=keys.shift();if(!k)break;total-=(snaps[k]||"").length;delete snaps[k];}
+    await ref.set({snaps},{mergeFields:["snaps"]});
+    db.settings.cloudSnapDay=d;save();
+  }catch(e){console.warn("snap",e);}
+}
+async function loadCloudSnaps(){
+  if(!fbUser||!fbDb){toast("로그인하면 볼 수 있어요");return;}
+  toast("불러오는 중…");
+  try{
+    const s=await userRef().get();
+    const snaps=(s.exists&&s.data().snaps)||{};
+    state.snaps=Object.keys(snaps).sort().reverse().map(d=>({d,s:snaps[d]}));
+    render();
+  }catch(e){toast("불러오지 못했어요: "+e.message,4000);}
 }
 initFirebase();
 
@@ -1071,6 +1218,7 @@ function checkReminders(){
   // 오래된 기록 정리
   Object.keys(db.notified).forEach(k=>{const v=db.notified[k];if(typeof v==='number'&&nowMs-v>3*86400000){delete db.notified[k];changed=true;}});
   if(changed)save();
+  dailyCloudSnap();
 }
 setInterval(checkReminders,30000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){checkReminders();if(state.view==='home')render();}});
