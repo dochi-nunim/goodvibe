@@ -985,6 +985,11 @@ function logout(){stopSync();firebase.auth().signOut();}
 function userRef(){return fbDb.collection("users").doc(fbUser.uid);}
 function clean(o){return JSON.parse(JSON.stringify(o));}
 /* ===== 두 기기 내용 합치기: 한쪽에만 있는 건 절대 지우지 않는다 ===== */
+function busyTyping(){
+  const a=document.activeElement;
+  if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable))return true;
+  return !!state.sheet;
+}
 function markGone(id){db.gone=db.gone||{};db.gone[id]=Date.now();}
 function gonePrune(g,reset){
   const now=Date.now();const out={};
@@ -1036,7 +1041,7 @@ async function startSync(){
     const merged=mergeDb(d.db,db);
     const sameAsMine=JSON.stringify(Object.assign({},merged,{updatedAt:0}))===JSON.stringify(Object.assign({},db,{updatedAt:0}));
     if(sameAsMine)return;
-    db=merged;save();render();
+    db=merged;save();if(!busyTyping())render();
   },e=>console.warn("snapshot",e));
   fbState="on";render();dailyCloudSnap();toast("기기 연동이 켜졌어요");
 }
@@ -1057,7 +1062,7 @@ function pushNow(){
       }
     }
     tx.set(ref,body(),only);
-  })).then(()=>{render();}).catch(()=>plain().catch(e=>toast("동기화 실패: "+e.message,4000)));
+  })).catch(()=>plain().catch(e=>toast("동기화 실패: "+e.message,4000)));
 }
 /* 하루에 한 번 그날 사본을 클라우드에 따로 남긴다 (덮어써도 날짜별로 되살릴 수 있게) */
 async function dailyCloudSnap(){
