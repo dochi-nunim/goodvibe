@@ -89,6 +89,13 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .odrow .l1{font-size:16px;line-height:1.35;word-break:break-word}
 .odrow .odbtn{flex:none;background:var(--yellow);border:2px solid var(--ink);border-radius:10px;padding:8px 12px;font-weight:800;font-size:13px;box-shadow:2px 2px 0 var(--ink)}
 .odrow .odbtn:active{transform:translate(2px,2px);box-shadow:none}
+.odrow .chk{flex:none;width:28px;height:28px;border:var(--bw) solid var(--ink);border-radius:8px;background:var(--paper);display:flex;align-items:center;justify-content:center;transition:transform .12s}
+.odrow.done .chk{background:var(--coral);transform:rotate(-8deg)}
+.odrow.done .chk::after{content:"";width:14px;height:8px;border-left:3px solid var(--ink);border-bottom:3px solid var(--ink);transform:translateY(-2px) rotate(-45deg)}
+.odrow.done .l1{color:var(--muted2);text-decoration:line-through}
+.odrow .oddel{flex:none;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--paper);border:2px solid var(--ink);border-radius:10px;box-shadow:2px 2px 0 var(--ink);color:var(--ink)}
+.odrow .oddel:active{transform:translate(2px,2px);box-shadow:none;background:var(--coral)}
+.sheet.still{animation:none}
 .item.dragging .sw{background:var(--paper)}
 .toast .undo{margin-left:12px;background:var(--ink);color:#fff;border-radius:8px;padding:5px 10px;font-weight:800;font-size:13px}
 .item .chk{flex:none;width:28px;height:28px;margin-top:1px;border:var(--bw) solid var(--ink);border-radius:8px;background:var(--paper);display:flex;align-items:center;justify-content:center;transition:transform .12s}
@@ -388,6 +395,12 @@ function overdueTasks(){
   const t=today();
   return db.tasks.filter(x=>!x.done&&x.date<t).sort((a,b)=>a.date.localeCompare(b.date)||a.created-b.created);
 }
+// 지난 할 일 시트에 보일 목록: 시트를 연 뒤 끝낸 것도 체크된 채로 남겨 둬서 바로 되돌릴 수 있게
+function overdueSheetList(s){
+  const t=today();const ids=new Set(s.ids||[]);
+  overdueTasks().forEach(x=>ids.add(x.id));
+  return db.tasks.filter(x=>ids.has(x.id)&&x.date<t).sort((a,b)=>a.date.localeCompare(b.date)||a.created-b.created);
+}
 function undoneCount(date){return itemsFor(date).filter(i=>!i.done).length;}
 
 /* ========== SVG ========== */
@@ -400,8 +413,12 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 
 /* ========== 렌더 ========== */
 const app=document.getElementById('app');
+let shownSheet=null;
 function render(){
   const y=window.scrollY;
+  // 열려 있던 시트를 다시 그릴 때 시트 안 스크롤 위치를 지킨다 (긴 목록에서 체크할 때 맨 위로 튀지 않게)
+  const osh=state.sheet&&state.sheet===shownSheet?document.querySelector('.sheet'):null;
+  const sy=osh?osh.scrollTop:0;
   let html='';
   if(state.view==='home')html=renderHome();
   else if(state.view==='routines')html=renderRoutines();
@@ -414,6 +431,8 @@ function render(){
   if(state.sheet)html+=renderSheet();
   app.innerHTML=html;
   window.scrollTo(0,y);
+  if(sy){const sh=document.querySelector('.sheet');if(sh)sh.scrollTop=sy;}
+  shownSheet=state.sheet;
   bindDrag();bindSwipe();
 }
 function topbar(title,right){
@@ -649,14 +668,17 @@ function renderSheet(){
      <div class="btns" style="margin-top:0"><button class="btn ghost" data-act="skiproutine" data-id="${r.id}" data-date="${s.date}">이 날만 빼기</button><button class="btn ghost" data-act="editroutine" data-id="${r.id}" data-date="${s.date}">루틴 설정</button></div>
      <div class="btns"><button class="btn" data-act="savernote" data-id="${r.id}" data-date="${s.date}">저장</button></div>`;
   }else if(s.type==='overdue'){
-    const od=overdueTasks();
-    inner=`<h3>안 끝난 지난 할 일<small class="h3sub">${od.length}개</small></h3>`;
-    if(!od.length)inner+=`<div class="empty">남아 있는 지난 할 일이 없어요.</div>`;
+    const list=overdueSheetList(s);
+    const left=list.filter(x=>!x.done).length,fin=list.length-left;
+    inner=`<h3>안 끝난 지난 할 일<small class="h3sub">${left?left+'개 남음':'모두 정리했어요'}${fin?` · ${fin}개 끝냄`:''}</small></h3>`;
+    if(!list.length)inner+=`<div class="empty">남아 있는 지난 할 일이 없어요.</div>`;
     else{
-      inner+=od.map(x=>{const c=cat(x.catId)||{};
-        return `<div class="odrow"><div class="body" data-act="open" data-id="${x.id}"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span>${kdateShort(x.date)} · ${daysAgo(x.date)}</div><div class="l1">${esc(x.title)}</div></div><button class="odbtn" data-act="pullone" data-id="${x.id}">오늘 하기</button></div>`;
+      inner+=`<div class="help" style="margin:0 0 4px">네모를 누르면 끝낸 걸로, 휴지통을 누르면 삭제돼요.</div>`;
+      inner+=list.map(x=>{const c=cat(x.catId)||{};
+        return `<div class="odrow ${x.done?'done':''}"><button class="chk" data-act="oddone" data-id="${x.id}" aria-label="${x.done?'끝냄 취소':'끝냄'}"></button><div class="body" data-act="open" data-id="${x.id}"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span>${kdateShort(x.date)} · ${daysAgo(x.date)}</div><div class="l1">${esc(x.title)}</div></div>${x.done?'':`<button class="odbtn" data-act="pullone" data-id="${x.id}">오늘 하기</button>`}<button class="oddel" data-act="oddel" data-id="${x.id}" aria-label="삭제"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></div>`;
       }).join('');
-      inner+=`<div class="btns"><button class="btn" data-act="pullall">${od.length}개 모두 오늘로</button></div>`;
+      inner+=left?`<div class="btns"><button class="btn" data-act="pullall">${left}개 모두 오늘로</button></div>`
+                 :`<div class="btns"><button class="btn ghost" data-act="closesheet">닫기</button></div>`;
     }
   }else if(s.type==='cat'){
     const c=s.id?cat(s.id):null;
@@ -673,7 +695,8 @@ function renderSheet(){
      <div class="field"><label>이름 (선택)</label><input type="text" id="f_label" placeholder="예) 아침 점검" value="${esc(d.label)}"></div>
      <div class="btns">${r?`<button class="btn danger" data-act="delreminder" data-id="${r.id}">삭제</button>`:''}<button class="btn" data-act="savereminder" data-id="${r?r.id:''}">저장</button></div>`;
   }
-  return `<div class="dim" data-act="closesheet"></div><div class="sheet"><div class="grab"></div>${inner}</div>`;
+  // 같은 시트를 다시 그릴 때는 올라오는 움직임을 반복하지 않는다
+  return `<div class="dim" data-act="closesheet"></div><div class="sheet${s===shownSheet?' still':''}"><div class="grab"></div>${inner}</div>`;
 }
 
 /* ========== 드래그 정렬 ========== */
@@ -782,6 +805,21 @@ function pullToToday(ids){
   if(state.sheet&&state.sheet.type==='overdue'&&!overdueTasks().length)state.sheet=null;
   render();
   toastUndo(was.length===1?'오늘로 가져왔어요':was.length+'개를 오늘로 가져왔어요',()=>{was.forEach(([x,d])=>x.date=d);save();render();});
+}
+// 지난 할 일 시트에서 바로 지운다 (하나씩 지울 때마다 묻지 않고, 대신 되돌리기를 준다)
+function delOverdue(id){
+  const i=db.tasks.findIndex(x=>x.id===id);if(i<0)return;
+  const x=db.tasks[i];const nk=db.notified['t|'+id];
+  markGone(id);db.tasks.splice(i,1);save();render();
+  toastUndo('삭제했어요',()=>{
+    // 지운 기록은 다른 기기에도 퍼져서 같은 id로 되살리면 다시 지워진다 → 새 id로 되살린다
+    const back=Object.assign({},x,{id:uid()});
+    db.tasks.push(back);
+    if(nk)db.notified['t|'+back.id]=nk;
+    const ord=db.dayOrder[x.date];if(ord){const j=ord.indexOf(id);if(j>=0)ord[j]=back.id;}
+    if(state.sheet&&state.sheet.type==='overdue')state.sheet.ids=(state.sheet.ids||[]).concat(back.id);
+    save();render();
+  });
 }
 function toastUndo(msg,fn){
   document.querySelectorAll('.toast').forEach(t=>t.remove());
@@ -935,7 +973,9 @@ app.addEventListener('click',e=>{
       else if(el.dataset.kind==='rnote'){state.date=el.dataset.date;state.view='home';openSheet({type:'rday',id,date:el.dataset.date});}
       else{state.view='routines';openSheet({type:'routine',id});}
       break;}
-    case 'overdue':openSheet({type:'overdue'});break;
+    case 'overdue':openSheet({type:'overdue',ids:overdueTasks().map(x=>x.id)});break;
+    case 'oddone':{const t=db.tasks.find(x=>x.id===id);if(t){t.done=!t.done;t.doneAt=t.done?Date.now():0;save();render();}break;}
+    case 'oddel':delOverdue(id);break;
     case 'pullone':pullToToday([id]);break;
     case 'pullall':pullToToday(overdueTasks().map(x=>x.id));break;
     case 'closesheet':closeSheet();break;
