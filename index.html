@@ -531,29 +531,40 @@ function renderSearch(){
   h+=`<div class="field" style="margin-top:2px"><input type="search" id="q" class="qbox" placeholder="할 일, 메모, 루틴에서 찾기" value="${esc(state.q||'')}" autocomplete="off" autocapitalize="off" enterkeyhint="search"></div><div id="results">${renderResults()}</div>`;
   return h;
 }
-// 검색어 강조: 먼저 HTML 이스케이프한 뒤 <mark>로 감싼다
-function hlText(text,q){
-  const e=esc(text);if(!q)return e;
-  const re=new RegExp(esc(q).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'ig');
-  return e.replace(re,m=>'<mark>'+m+'</mark>');
+// 검색: 띄어 쓴 낱말이 모두 들어 있으면 찾는다 (순서 상관없음). 다른 기기에서 붙여 넣은 풀어쓴 한글(NFD)도 같은 글자로 본다
+const norm=s=>String(s??'').normalize('NFC').toLowerCase();
+const qWords=q=>norm(q).split(/\s+/).filter(Boolean);
+// 검색어 강조: 낱말 자리에서 글을 나눈 뒤 조각마다 이스케이프한다
+function hlText(text,words){
+  const s=String(text??'').normalize('NFC');
+  if(!words.length)return esc(s);
+  const re=new RegExp('('+words.slice().sort((a,b)=>b.length-a.length).map(w=>w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')+')','ig');
+  return s.split(re).map((p,i)=>i%2?'<mark>'+esc(p)+'</mark>':esc(p)).join('');
 }
 function renderResults(){
   const q=(state.q||'').trim();
   if(!q)return `<div class="empty">낱말을 입력하면 지금까지 적은 할 일·메모·루틴 전체에서 찾아요.</div>`;
-  const lq=q.toLowerCase();const t=today();
-  const memoLines=m=>{const ls=(m||'').split(/\n/).filter(x=>x.trim());const hit=ls.filter(x=>x.toLowerCase().includes(lq));return (hit.length?hit:ls).slice(0,2);};
-  const tasks=db.tasks.filter(x=>(x.title+'\n'+(x.memo||'')).toLowerCase().includes(lq)).sort((a,b)=>b.date.localeCompare(a.date)||b.created-a.created);
-  const routines=db.routines.filter(x=>(x.title+'\n'+(x.memo||'')).toLowerCase().includes(lq));
-  const notes=Object.keys(db.routineNotes).map(k=>{const i=k.lastIndexOf('|');const r=db.routines.find(x=>x.id===k.slice(0,i));return r?{r,date:k.slice(i+1),note:db.routineNotes[k]}:null;}).filter(n=>n&&(n.note||'').toLowerCase().includes(lq)).sort((a,b)=>b.date.localeCompare(a.date));
+  const w=qWords(q);const t=today();
+  const has=text=>{const s=norm(text);return w.every(x=>s.includes(x));};
+  const memoLines=m=>{const ls=(m||'').split(/\n/).filter(x=>x.trim());const hit=ls.filter(x=>{const s=norm(x);return w.some(y=>s.includes(y));});return (hit.length?hit:ls).slice(0,2);};
+  const tasks=db.tasks.filter(x=>has(x.title+'\n'+(x.memo||'')));
+  const routines=db.routines.filter(x=>has(x.title+'\n'+(x.memo||'')));
+  // 날짜별 메모는 메모 글뿐 아니라 루틴 이름으로도 찾는다 ('출결'로 찾으면 '출결체크'에 날마다 적은 메모가 다 나오게)
+  const notes=Object.keys(db.routineNotes).map(k=>{const i=k.lastIndexOf('|');const r=db.routines.find(x=>x.id===k.slice(0,i));return r?{r,date:k.slice(i+1),note:db.routineNotes[k]}:null;}).filter(n=>n&&(n.note||'').trim()&&has(n.r.title+'\n'+n.note));
   if(!tasks.length&&!routines.length&&!notes.length)return `<div class="empty">"${esc(q)}" — 찾은 내용이 없어요.</div>`;
   const dlabel=d=>{const dd=parse(d);const y=dd.getFullYear()!==new Date().getFullYear()?dd.getFullYear()+'. ':'';return y+kdateShort(d)+(d===t?' · 오늘':'');};
   let h=`<div class="help" style="margin:0 0 10px">${tasks.length+routines.length+notes.length}개 찾음</div>`;
   routines.forEach(r=>{const c=cat(r.catId)||{};
-    h+=`<div class="rt hit" data-act="openhit" data-kind="routine" data-id="${r.id}"><div class="body"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span><span class="tag">루틴</span>${routineStatus(r)[0]}</div><div class="l1">${hlText(r.title,q)}</div>${memoLines(r.memo).length?`<div class="l2">${memoLines(r.memo).map(x=>hlText(x,q)).join('<br>')}</div>`:''}</div><span class="chev">›</span></div>`;});
-  notes.forEach(n=>{const c=cat(n.r.catId)||{};
-    h+=`<div class="rt hit" data-act="openhit" data-kind="rnote" data-id="${n.r.id}" data-date="${n.date}"><div class="body"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span><span class="tag">루틴</span>${dlabel(n.date)}</div><div class="l1">${hlText(n.r.title,q)}</div><div class="l2">${memoLines(n.note).map(y=>hlText(y,q)).join('<br>')}</div></div><span class="chev">›</span></div>`;});
-  tasks.forEach(x=>{const c=cat(x.catId)||{};
-    h+=`<div class="rt hit ${x.done?'done':''}" data-act="openhit" data-kind="task" data-id="${x.id}"><div class="body"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span>${dlabel(x.date)}${x.done?' · 완료':''}</div><div class="l1">${hlText(x.title,q)}</div>${memoLines(x.memo).length?`<div class="l2">${memoLines(x.memo).map(y=>hlText(y,q)).join('<br>')}</div>`:''}</div><span class="chev">›</span></div>`;});
+    h+=`<div class="rt hit" data-act="openhit" data-kind="routine" data-id="${r.id}"><div class="body"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span><span class="tag">루틴</span>${routineStatus(r)[0]}</div><div class="l1">${hlText(r.title,w)}</div>${memoLines(r.memo).length?`<div class="l2">${memoLines(r.memo).map(x=>hlText(x,w)).join('<br>')}</div>`:''}</div><span class="chev">›</span></div>`;});
+  // 날짜별 메모와 할 일은 한데 섞어 최근 날짜부터
+  const dated=notes.map(n=>({d:n.date,c:Infinity,n})).concat(tasks.map(x=>({d:x.date,c:x.created||0,x})));
+  dated.sort((a,b)=>b.d.localeCompare(a.d)||b.c-a.c);
+  dated.forEach(({n,x})=>{
+    if(n){const c=cat(n.r.catId)||{};
+      h+=`<div class="rt hit" data-act="openhit" data-kind="rnote" data-id="${n.r.id}" data-date="${n.date}"><div class="body"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span><span class="tag">루틴</span>${dlabel(n.date)}</div><div class="l1">${hlText(n.r.title,w)}</div><div class="l2">${memoLines(n.note).map(y=>hlText(y,w)).join('<br>')}</div></div><span class="chev">›</span></div>`;}
+    else{const c=cat(x.catId)||{};
+      h+=`<div class="rt hit ${x.done?'done':''}" data-act="openhit" data-kind="task" data-id="${x.id}"><div class="body"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span>${dlabel(x.date)}${x.done?' · 완료':''}</div><div class="l1">${hlText(x.title,w)}</div>${memoLines(x.memo).length?`<div class="l2">${memoLines(x.memo).map(y=>hlText(y,w)).join('<br>')}</div>`:''}</div><span class="chev">›</span></div>`;}
+  });
   return h;
 }
 function histWhen(t){const d=new Date(t);return `${d.getMonth()+1}월 ${d.getDate()}일 ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
