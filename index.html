@@ -266,6 +266,27 @@ if(!db){db=defaultDB();save();}
 for(const k of ['tasks','routines','categories','reminders'])db[k]=db[k]||[];
 for(const k of ['routineDone','routineSkip','routineNotes','dayOrder','notified','settings'])db[k]=db[k]||{};
 db.categories.forEach(c=>{if(OLD_COLORS[c.color])c.color=OLD_COLORS[c.color];});
+/* ===== 어느 칸을 언제 고쳤는지 기록 (기기끼리 합칠 때 칸마다 더 최근 것을 고르려고) ===== */
+const MOD_LISTS=[['tasks','t'],['routines','r'],['categories','c'],['reminders','m']];
+const MOD_MAPS=[['routineDone','rd'],['routineSkip','rs'],['routineNotes','rn'],['dayOrder','do'],['settings','st']];
+function modSnapshot(o){
+  const out={};
+  MOD_LISTS.forEach(([k,p])=>(o[k]||[]).forEach(x=>{if(x&&x.id)out[p+':'+x.id]=JSON.stringify(x);}));
+  MOD_MAPS.forEach(([k,p])=>{const m=o[k]||{};Object.keys(m).forEach(key=>{out[p+':'+key]=JSON.stringify(m[key]);});});
+  return out;
+}
+function stampChanges(prevObj,next){
+  const a=modSnapshot(prevObj),b=modSnapshot(next),t=Date.now();
+  const mod=next.mod||{};
+  Object.keys(b).forEach(k=>{if(a[k]!==b[k])mod[k]=t;});
+  Object.keys(a).forEach(k=>{if(!(k in b))mod[k]=t;});   // 지운 칸도 시각을 남겨야 다른 기기에서 되살아나지 않는다
+  next.mod=mod;
+}
+function modPrune(mod,o){
+  const live=modSnapshot(o),now=Date.now(),out={};
+  Object.keys(mod||{}).forEach(k=>{if((k in live)||now-mod[k]<180*86400000)out[k]=mod[k];});
+  return out;
+}
 /* ===== 되살리기 지점: 저장할 때마다 바로 앞 내용을 따로 보관 ===== */
 const HKEY='dayplanner.hist';
 function histRead(){try{return JSON.parse(localStorage.getItem(HKEY))||[];}catch(e){return [];}}
@@ -300,8 +321,12 @@ function pushHist(prev,force){
     histWrite(histPrune(list));
   }catch(e){}
 }
+if(!db.mod){db.mod={};const base=db.updatedAt||Date.now();Object.keys(modSnapshot(db)).forEach(k=>{db.mod[k]=base;});}
 function save(){
   const prev=localStorage.getItem(KEY);
+  let pj=null;if(prev){try{pj=JSON.parse(prev);}catch(e){}}
+  if(pj)stampChanges(pj,db);
+  if(db.mod&&Object.keys(db.mod).length>1500)db.mod=modPrune(db.mod,db);
   db.updatedAt=Date.now();
   const next=JSON.stringify(db);
   if(prev&&prev!==next)pushHist(prev);
@@ -312,6 +337,7 @@ function save(){
   }
   schedulePush();
 }
+
 
 /* ========== 날짜 도우미 ========== */
 const pad=n=>String(n).padStart(2,'0');
@@ -1049,31 +1075,55 @@ function gonePrune(g,reset){
 }
 function mergeDb(r,l){
   const rNew=(r.updatedAt||0)>=(l.updatedAt||0);
-  const a=rNew?r:l,b=rNew?l:r;            // a = 더 최근 쪽. 같은 칸이 겹치면 a가 이긴다
+  const a=rNew?r:l,b=rNew?l:r;            // 칸별 기록이 같을 때만 a(전체가 더 최근인 쪽)가 이긴다
+  const ma=a.mod||{},mb=b.mod||{};
   const out=Object.assign({},b,a);
   const reset=Math.max(r.goneReset||0,l.goneReset||0);
   out.goneReset=reset;
   out.gone=gonePrune(Object.assign({},l.gone||{},r.gone||{}),reset);
   const dead=id=>Object.prototype.hasOwnProperty.call(out.gone,id);
-  const catMap={};
-  out.categories=(a.categories||[]).slice();
-  (b.categories||[]).forEach(c=>{
-    const same=out.categories.find(x=>x.id===c.id)||out.categories.find(x=>x.name===c.name);
-    if(same)catMap[c.id]=same.id;else out.categories.push(c);
-  });
-  out.categories=out.categories.filter(c=>!dead(c.id));
-  const union=(p,q)=>{
-    const ids=new Set((p||[]).map(x=>x.id));
-    return (p||[]).concat((q||[]).filter(x=>!ids.has(x.id)).map(x=>Object.assign({},x,{catId:catMap[x.catId]||x.catId}))).filter(x=>x&&x.id&&!dead(x.id));
+  // 'a' = a쪽 내용, 'b' = b쪽 내용, null = 나중에 지워진 칸
+  const pick=(key,inA,inB)=>{
+    const ta=ma[key]||0,tb=mb[key]||0;
+    if(inA&&inB)return ta>=tb?'a':'b';
+    if(inA)return tb>ta?null:'a';
+    return ta>tb?null:'b';
   };
-  out.tasks=union(a.tasks,b.tasks);
-  out.routines=union(a.routines,b.routines);
-  out.reminders=union(a.reminders,b.reminders);
-  for(const k of ["routineDone","routineSkip","routineNotes","dayOrder","notified","settings"])out[k]=Object.assign({},b[k]||{},a[k]||{});
-  const live=new Set(out.routines.map(x=>x.id));
+  // 이름이 같은 카테고리는 하나로 본다
+  const catMap={};
+  (b.categories||[]).forEach(c=>{
+    const same=(a.categories||[]).find(x=>x.id===c.id)||(a.categories||[]).find(x=>x.name===c.name);
+    if(same&&same.id!==c.id)catMap[c.id]=same.id;
+  });
+  MOD_LISTS.forEach(([k,p])=>{
+    const A={},B={};
+    (a[k]||[]).forEach(x=>{if(x&&x.id)A[x.id]=x;});
+    (b[k]||[]).forEach(x=>{if(x&&x.id)B[x.id]=Object.assign({},x,{catId:catMap[x.catId]||x.catId});});
+    const ids=Object.keys(A).concat(Object.keys(B).filter(id=>!(id in A)));
+    out[k]=ids.map(id=>{
+      if(dead(id))return null;
+      const w=pick(p+':'+id,(id in A),(id in B));
+      return w==='a'?A[id]:w==='b'?B[id]:null;
+    }).filter(Boolean);
+  });
+  const seenName={};
+  out.categories=out.categories.filter(c=>{if(seenName[c.name])return false;seenName[c.name]=1;return true;});
+  MOD_MAPS.forEach(([k,p])=>{
+    const A=a[k]||{},B=b[k]||{},m={};
+    const has=(o,x)=>Object.prototype.hasOwnProperty.call(o,x);
+    Object.keys(A).concat(Object.keys(B).filter(x=>!has(A,x))).forEach(key=>{
+      const w=pick(p+':'+key,has(A,key),has(B,key));
+      if(w==='a')m[key]=A[key];else if(w==='b')m[key]=B[key];
+    });
+    out[k]=m;
+  });
+  out.notified=Object.assign({},b.notified||{},a.notified||{});
+  const live=new Set((out.routines||[]).map(x=>x.id));
   ["routineDone","routineSkip","routineNotes"].forEach(k=>{
     Object.keys(out[k]).forEach(key=>{const i=key.lastIndexOf('|');if(i<0)return;if(!live.has(key.slice(0,i)))delete out[k][key];});
   });
+  out.mod={};
+  new Set(Object.keys(ma).concat(Object.keys(mb))).forEach(k=>{out.mod[k]=Math.max(ma[k]||0,mb[k]||0);});
   out.updatedAt=Math.max(r.updatedAt||0,l.updatedAt||0);
   return out;
 }
