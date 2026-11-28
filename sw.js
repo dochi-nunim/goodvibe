@@ -1,4 +1,4 @@
-const CACHE = 'dayplanner-v19';
+const CACHE = 'dayplanner-v20';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-180.png'];
 
 self.addEventListener('install', e => {
@@ -10,6 +10,7 @@ self.addEventListener('activate', e => {
 // 네트워크 우선, 실패하면 캐시 (오프라인에서도 열림)
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  if (e.request.url.indexOf('version.json') >= 0) return;   // 버전 확인은 늘 새로
   e.respondWith(
     fetch(e.request).then(res => {
       const copy = res.clone();

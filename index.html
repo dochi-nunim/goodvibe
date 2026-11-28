@@ -275,7 +275,7 @@ mark{background:var(--yellow);color:var(--ink);padding:0 2px;border-radius:3px}
 /* ========== 저장소 ========== */
 let fbUser=null,fbDb=null,fbState="idle",unsubSnap=null,pushTimer=null;
 function schedulePush(){if(!fbUser||!fbDb)return;clearTimeout(pushTimer);pushTimer=setTimeout(pushNow,600);}
-const APP_VER='v19';
+const APP_VER='v20';
 const KEY='dayplanner.v1';
 const PALETTE=["#ffd93d","#8ee3c8","#ffb3d1","#c9b6ff","#ffc09f","#d4f37a","#9fd3ff","#ff8c82","#7fe0e6","#ffb347","#f0e6c8","#ffffff"];
 const OLD_COLORS={"#ff5a5f":"#ffd93d","#ff9f1c":"#8ee3c8","#b455f5":"#ffb3d1","#ffb3c6":"#c9b6ff","#f5c518":"#ffc09f","#8bc34a":"#d4f37a","#4dd0e1":"#9fd3ff","#2fb37b":"#8ee3c8","#2f7cf6":"#9fd3ff","#7b61ff":"#c9b6ff","#ff7ab6":"#ffb3d1","#8d6e63":"#ffb347","#607d8b":"#f0e6c8","#111111":"#ffffff"};
@@ -680,9 +680,13 @@ function memoSide(d){
   h+=`</div>`;
   return h;
 }
-/* 새 버전 받아 오기 */
+/* 옛 화면이 남아 있으면 스스로 알아차리고 새로 받는다 */
+function freshReload(){
+  const base=location.origin+location.pathname.replace(/[^/]*$/,'');
+  location.replace(base+'?v='+Date.now());
+}
 function forceUpdate(){
-  toast('업데이트 확인 중…',3000);
+  toast('새 버전을 받는 중이에요…',4000);
   (async()=>{
     try{
       if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));}
@@ -691,9 +695,23 @@ function forceUpdate(){
         await Promise.all(regs.map(r=>r.update().catch(()=>{})));
       }
     }catch(e){}
-    location.reload();
+    setTimeout(freshReload,400);
   })();
 }
+function checkVersion(){
+  fetch('version.json?x='+Date.now(),{cache:'no-store'})
+    .then(r=>r.ok?r.json():null)
+    .then(j=>{
+      if(!j||!j.ver||j.ver===APP_VER)return;
+      let once=null;try{once=sessionStorage.getItem('gv.heal');}catch(e){}
+      if(once===j.ver)return;                       // 한 번만 시도 (무한 새로고침 막기)
+      try{sessionStorage.setItem('gv.heal',j.ver);}catch(e){}
+      if(busyTyping()){toast('새 버전이 있어요. 다 적고 나서 다시 열면 바뀌어요',5000);return;}
+      forceUpdate();
+    }).catch(()=>{});
+}
+setTimeout(checkVersion,2500);
+window.addEventListener('focus',()=>setTimeout(checkVersion,500));
 function renderMemo(){
   const d=memoDate();
   const v=db.dayMemo[d]||'';
