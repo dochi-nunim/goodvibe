@@ -251,6 +251,8 @@ mark{background:var(--yellow);color:var(--ink);padding:0 2px;border-radius:3px}
 .ms-item .chip{font-size:11px;padding:1px 7px;vertical-align:1px}
 .ms-item .tag{margin-left:4px}
 @media (max-width:640px){.memoside{max-width:none;max-height:36vh}}
+.popmenu .vrow{display:flex;align-items:center;gap:8px;padding:10px 14px 2px;color:var(--muted2);font-size:12px;border-top:1.5px dashed #e3d9bf;margin-top:6px}
+.popmenu .vrow button{all:unset;cursor:pointer;margin-left:auto;font-size:12px;font-weight:800;color:var(--ink);background:var(--yellow);border:2px solid var(--ink);border-radius:999px;padding:3px 10px}
 .daymemo{display:block;width:100%;text-align:left;background:var(--paper);border:var(--bw) solid var(--ink);box-shadow:var(--sh);border-radius:var(--r);padding:12px 14px;margin:2px 3px 14px 0}
 .daymemo.has{background:#fffbe8}
 .daymemo .dm-head{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px}
@@ -273,6 +275,7 @@ mark{background:var(--yellow);color:var(--ink);padding:0 2px;border-radius:3px}
 /* ========== 저장소 ========== */
 let fbUser=null,fbDb=null,fbState="idle",unsubSnap=null,pushTimer=null;
 function schedulePush(){if(!fbUser||!fbDb)return;clearTimeout(pushTimer);pushTimer=setTimeout(pushNow,600);}
+const APP_VER='v19';
 const KEY='dayplanner.v1';
 const PALETTE=["#ffd93d","#8ee3c8","#ffb3d1","#c9b6ff","#ffc09f","#d4f37a","#9fd3ff","#ff8c82","#7fe0e6","#ffb347","#f0e6c8","#ffffff"];
 const OLD_COLORS={"#ff5a5f":"#ffd93d","#ff9f1c":"#8ee3c8","#b455f5":"#ffb3d1","#ffb3c6":"#c9b6ff","#f5c518":"#ffc09f","#8bc34a":"#d4f37a","#4dd0e1":"#9fd3ff","#2fb37b":"#8ee3c8","#2f7cf6":"#9fd3ff","#7b61ff":"#c9b6ff","#ff7ab6":"#ffb3d1","#8d6e63":"#ffb347","#607d8b":"#f0e6c8","#111111":"#ffffff"};
@@ -677,6 +680,20 @@ function memoSide(d){
   h+=`</div>`;
   return h;
 }
+/* 새 버전 받아 오기 */
+function forceUpdate(){
+  toast('업데이트 확인 중…',3000);
+  (async()=>{
+    try{
+      if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));}
+      if(navigator.serviceWorker){
+        const regs=await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r=>r.update().catch(()=>{})));
+      }
+    }catch(e){}
+    location.reload();
+  })();
+}
 function renderMemo(){
   const d=memoDate();
   const v=db.dayMemo[d]||'';
@@ -716,7 +733,8 @@ function renderMenu(){
    <button data-act="go" data-view="categories">카테고리 관리</button>
    <button data-act="go" data-view="routines">루틴 관리</button>
    <button data-act="go" data-view="reminders">리마인더 관리</button>
-   <button data-act="go" data-view="backup">백업</button></div>`;
+   <button data-act="go" data-view="backup">백업</button>
+   <div class="vrow">버전 ${APP_VER}<button data-act="update">업데이트 확인</button></div></div>`;
 }
 
 function renderMonth(){
@@ -991,6 +1009,7 @@ app.addEventListener('click',e=>{
     case 'closemenu':state.menu=false;render();break;
     case 'back':if(state.view==='memo')flushMemo();state.view='home';render();break;
     case 'go':state.menu=false;if(el.dataset.view==='addcat')openSheet({type:'cat'});else{state.view=el.dataset.view;render();}break;
+    case 'update':forceUpdate();break;
     case 'daymemo':state.memoDate=state.date;state.view='memo';render();break;
     case 'memoprev':goMemo(addDays(memoDate(),-1));break;
     case 'memonext':goMemo(addDays(memoDate(),1));break;
@@ -1364,7 +1383,17 @@ function renderCalBox(){
 
 /* ========== 알림 ========== */
 let swReg=null;
-if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(r=>swReg=r).catch(()=>{});}
+if('serviceWorker' in navigator){
+  const had=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js').then(r=>{swReg=r;r.update().catch(()=>{});}).catch(()=>{});
+  let reloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(!had||reloaded)return;reloaded=true;
+    if(busyTyping()){toast('새 버전이 있어요. 창을 닫았다 열면 바뀌어요',4000);return;}
+    location.reload();
+  });
+  window.addEventListener('focus',()=>{if(swReg)swReg.update().catch(()=>{});});
+}
 function ensurePermission(force){
   if(!('Notification' in window)){if(force)toast('이 브라우저는 알림을 지원하지 않아요. 아이폰이면 홈 화면에 추가한 뒤 열어 주세요.',4000);return;}
   if(Notification.permission==='default'||force&&Notification.permission!=='granted'){
