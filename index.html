@@ -235,6 +235,22 @@ mark{background:var(--yellow);color:var(--ink);padding:0 2px;border-radius:3px}
 .fab{position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(20px + env(safe-area-inset-bottom));width:58px;height:58px;border-radius:16px;background:var(--yellow);color:var(--ink);border:var(--bw) solid var(--ink);box-shadow:4px 4px 0 var(--ink);font-size:32px;display:flex;align-items:center;justify-content:center;z-index:10;font-family:system-ui,sans-serif}
 .fab:active{transform:translate(3px,3px);box-shadow:none}
 @media (min-width:600px){.fab{right:calc(50% - 260px + 16px)}}
+#app.wide{max-width:1000px}
+.memowrap{display:flex;gap:14px;align-items:flex-start}
+.memowrap .bigmemo{flex:1;min-width:0}
+.memoside{flex:0 0 290px;max-height:68vh;overflow:auto;background:var(--paper);border:var(--bw) solid var(--ink);box-shadow:var(--sh);border-radius:var(--r);padding:12px}
+.memoside .ms-head{font-weight:800;font-size:14px;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.memoside .ms-n{background:var(--yellow);border:2px solid var(--ink);border-radius:999px;padding:0 8px;font-size:12px}
+.ms-item{display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-top:1.5px dashed #e3d9bf}
+.ms-item+.ms-item{}
+.ms-item .chk{flex:none;width:22px;height:22px;margin-top:1px;border:2px solid var(--ink);border-radius:7px;background:var(--paper);display:flex;align-items:center;justify-content:center}
+.ms-item.done .chk{background:var(--coral);transform:rotate(-8deg)}
+.ms-item.done .chk::after{content:"";width:11px;height:6px;border-left:2.5px solid var(--ink);border-bottom:2.5px solid var(--ink);transform:translateY(-2px) rotate(-45deg)}
+.ms-item .ms-t{flex:1;min-width:0;font-size:14px;line-height:1.5;font-weight:700;word-break:break-word}
+.ms-item.done .ms-t{color:var(--muted2);text-decoration:line-through}
+.ms-item .chip{font-size:11px;padding:1px 7px;vertical-align:1px}
+.ms-item .tag{margin-left:4px}
+@media (max-width:820px){.memowrap{flex-direction:column}.memoside{flex:none;width:100%;max-height:36vh}}
 .daymemo{display:block;width:100%;text-align:left;background:var(--paper);border:var(--bw) solid var(--ink);box-shadow:var(--sh);border-radius:var(--r);padding:12px 14px;margin:2px 3px 14px 0}
 .daymemo.has{background:#fffbe8}
 .daymemo .dm-head{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px}
@@ -466,6 +482,7 @@ function render(){
   if(state.menu)html+=renderMenu();
   if(state.month)html+=renderMonth();
   if(state.sheet)html+=renderSheet();
+  app.classList.toggle('wide',state.view==='memo');
   app.innerHTML=html;
   window.scrollTo(0,y);
   if(sy){const sh=document.querySelector('.sheet');if(sh)sh.scrollTop=sy;}
@@ -647,12 +664,25 @@ function flushMemo(){
   if((t.value||'').trim()!==(db.dayMemo[d]||'').trim()||t.value!==(db.dayMemo[d]||''))saveDayMemo(t.value);
 }
 function goMemo(d){flushMemo();state.memoDate=d;state.date=d;render();}
+function memoSide(d){
+  const items=sortItems(itemsFor(d),d);
+  const left=items.filter(i=>!i.done).length;
+  let h=`<div class="memoside"><div class="ms-head">할 일<span class="ms-n">${left}</span></div>`;
+  if(!items.length)h+=`<div class="empty" style="padding:4px 2px">이 날 할 일이 없어요.</div>`;
+  else h+=items.map(it=>{
+    const c=cat(it.catId)||{};
+    return `<div class="ms-item ${it.done?'done':''}"><button class="chk" data-act="toggle" data-id="${it.id}"></button>
+      <span class="ms-t"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span> ${esc(it.title)}${it.kind==='routine'?'<span class="tag">루틴</span>':''}</span></div>`;
+  }).join('');
+  h+=`</div>`;
+  return h;
+}
 function renderMemo(){
   const d=memoDate();
   const v=db.dayMemo[d]||'';
   let h=topbar(kdateShort(d)+' 메모');
   h+=`<div class="memobar"><button class="pillbtn" data-act="memoprev">‹ 전날</button><button class="pillbtn" data-act="memotoday">오늘</button><button class="pillbtn" data-act="memonext">다음 날 ›</button><span class="saved" id="memosaved"></span></div>`;
-  h+=`<textarea class="bigmemo" id="daymemo" spellcheck="false" placeholder="몇 시에 무엇을 할지 자유롭게 적어 보세요.&#10;&#10;예)&#10;08:40 조회 — 출결 확인&#10;10:00 3반 수업&#10;13:30 회의 자료 뽑기&#10;방과 후 상담 1건">${esc(v)}</textarea>`;
+  h+=`<div class="memowrap">`+memoSide(d)+`<textarea class="bigmemo" id="daymemo" spellcheck="false" placeholder="몇 시에 무엇을 할지 자유롭게 적어 보세요.&#10;&#10;예)&#10;08:40 조회 — 출결 확인&#10;10:00 3반 수업&#10;13:30 회의 자료 뽑기&#10;방과 후 상담 1건">${esc(v)}</textarea></div>`;
   h+=`<div class="help">적는 대로 저장돼요. 길이 제한은 없어요.</div>`;
   return h;
 }
@@ -981,6 +1011,7 @@ app.addEventListener('click',e=>{
       if(id.startsWith('r:'))openSheet({type:'rday',id:id.slice(2),date:state.date});
       else openSheet({type:'task',id});break;
     case 'toggle':{
+      if(state.view==='memo')flushMemo();
       if(id.startsWith('r:')){const k=id.slice(2)+'|'+state.date;if(db.routineDone[k])delete db.routineDone[k];else db.routineDone[k]=Date.now();}
       else{const t=db.tasks.find(x=>x.id===id);if(t){t.done=!t.done;t.doneAt=t.done?Date.now():0;}}
       save();render();break;}
