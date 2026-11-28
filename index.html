@@ -235,6 +235,16 @@ mark{background:var(--yellow);color:var(--ink);padding:0 2px;border-radius:3px}
 .fab{position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(20px + env(safe-area-inset-bottom));width:58px;height:58px;border-radius:16px;background:var(--yellow);color:var(--ink);border:var(--bw) solid var(--ink);box-shadow:4px 4px 0 var(--ink);font-size:32px;display:flex;align-items:center;justify-content:center;z-index:10;font-family:system-ui,sans-serif}
 .fab:active{transform:translate(3px,3px);box-shadow:none}
 @media (min-width:600px){.fab{right:calc(50% - 260px + 16px)}}
+.daymemo{display:block;width:100%;text-align:left;background:var(--paper);border:var(--bw) solid var(--ink);box-shadow:var(--sh);border-radius:var(--r);padding:12px 14px;margin:2px 3px 14px 0}
+.daymemo.has{background:#fffbe8}
+.daymemo .dm-head{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px}
+.daymemo .dm-head .chev{margin-left:auto;color:var(--muted2);font-size:18px}
+.daymemo .dm-ico{font-size:15px}
+.daymemo .dm-body{margin-top:8px;color:var(--muted);font-size:14px;line-height:1.55;white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.daymemo .dm-empty{margin-top:6px;color:var(--muted2);font-size:14px}
+.memobar{display:flex;gap:8px;align-items:center;margin:2px 3px 10px 0}
+.memobar .saved{margin-left:auto;color:var(--muted2);font-size:13px;font-weight:700}
+.bigmemo{width:100%;min-height:62vh;border:var(--bw) solid var(--ink);box-shadow:var(--sh);border-radius:var(--r);background:var(--paper);color:var(--ink);padding:14px;font-size:16px;line-height:1.75;font-family:inherit;resize:vertical}
 .warn{background:#fff3c4;border:var(--bw) solid var(--ink);box-shadow:var(--sh2);border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.55;margin:4px 3px 16px 0}
 .sec{font-weight:800;font-size:15px;margin:24px 0 4px}
 .btn.mini{flex:0 0 auto;padding:9px 14px;font-size:14px;box-shadow:var(--sh2)}
@@ -257,18 +267,18 @@ function defaultDB(){
   return {
     categories:names.map(([name,color],i)=>({id:uid()+i,name,color})),
     tasks:[],routines:[],routineDone:{},routineSkip:{},routineNotes:{},dayOrder:{},
-    reminders:[],notified:{},settings:{}
+    reminders:[],notified:{},settings:{},dayMemo:{}
   };
 }
 let db;
 try{db=JSON.parse(localStorage.getItem(KEY))||null;}catch(e){db=null;}
 if(!db){db=defaultDB();save();}
 for(const k of ['tasks','routines','categories','reminders'])db[k]=db[k]||[];
-for(const k of ['routineDone','routineSkip','routineNotes','dayOrder','notified','settings'])db[k]=db[k]||{};
+for(const k of ['routineDone','routineSkip','routineNotes','dayOrder','notified','settings','dayMemo'])db[k]=db[k]||{};
 db.categories.forEach(c=>{if(OLD_COLORS[c.color])c.color=OLD_COLORS[c.color];});
 /* ===== 어느 칸을 언제 고쳤는지 기록 (기기끼리 합칠 때 칸마다 더 최근 것을 고르려고) ===== */
 const MOD_LISTS=[['tasks','t'],['routines','r'],['categories','c'],['reminders','m']];
-const MOD_MAPS=[['routineDone','rd'],['routineSkip','rs'],['routineNotes','rn'],['dayOrder','do'],['settings','st']];
+const MOD_MAPS=[['routineDone','rd'],['routineSkip','rs'],['routineNotes','rn'],['dayOrder','do'],['settings','st'],['dayMemo','dm']];
 function modSnapshot(o){
   const out={};
   MOD_LISTS.forEach(([k,p])=>(o[k]||[]).forEach(x=>{if(x&&x.id)out[p+':'+x.id]=JSON.stringify(x);}));
@@ -452,6 +462,7 @@ function render(){
   else if(state.view==='reminders')html=renderReminders();
   else if(state.view==='backup')html=renderBackup();
   else if(state.view==='search')html=renderSearch();
+  else if(state.view==='memo')html=renderMemo();
   if(state.menu)html+=renderMenu();
   if(state.month)html+=renderMonth();
   if(state.sheet)html+=renderSheet();
@@ -479,6 +490,10 @@ function renderHome(){
       <div class="badge ${n?'':'zero'}" style="background:${n?color:'#fff'}"><div class="n">${n}</div></div>
       <div class="num ${cls}">${parse(d).getDate()}</div></div>`;
   }).join('')+`</div>`;
+  const dmv=db.dayMemo[state.date]||'';
+  h+=`<button class="daymemo ${dmv.trim()?'has':''}" data-act="daymemo">
+    <div class="dm-head"><span class="dm-ico">✎</span><b>${kdateShort(state.date)} 메모</b><span class="chev">›</span></div>
+    ${dmv.trim()?`<div class="dm-body">${esc(dmv)}</div>`:`<div class="dm-empty">몇 시에 무엇을 할지 자유롭게 적어 두세요</div>`}</button>`;
   const od=overdueTasks();
   if(od.length&&state.date===today())
     h+=`<button class="overdue" data-act="overdue"><b>안 끝난 지난 할 일 ${od.length}개</b><span>오늘로 가져오기 ›</span></button>`;
@@ -577,15 +592,20 @@ function renderResults(){
   const routines=db.routines.filter(x=>has(x.title+'\n'+(x.memo||'')));
   // 날짜별 메모는 메모 글뿐 아니라 루틴 이름으로도 찾는다 ('출결'로 찾으면 '출결체크'에 날마다 적은 메모가 다 나오게)
   const notes=Object.keys(db.routineNotes).map(k=>{const i=k.lastIndexOf('|');const r=db.routines.find(x=>x.id===k.slice(0,i));return r?{r,date:k.slice(i+1),note:db.routineNotes[k]}:null;}).filter(n=>n&&(n.note||'').trim()&&has(n.r.title+'\n'+n.note));
-  if(!tasks.length&&!routines.length&&!notes.length)return `<div class="empty">"${esc(q)}" — 찾은 내용이 없어요.</div>`;
+  const dmemos=Object.keys(db.dayMemo||{}).map(d=>({d,note:db.dayMemo[d]})).filter(x=>(x.note||'').trim()&&has(x.note));
+  if(!tasks.length&&!routines.length&&!notes.length&&!dmemos.length)return `<div class="empty">"${esc(q)}" — 찾은 내용이 없어요.</div>`;
   const dlabel=d=>{const dd=parse(d);const y=dd.getFullYear()!==new Date().getFullYear()?dd.getFullYear()+'. ':'';return y+kdateShort(d)+(d===t?' · 오늘':'');};
-  let h=`<div class="help" style="margin:0 0 10px">${tasks.length+routines.length+notes.length}개 찾음</div>`;
+  let h=`<div class="help" style="margin:0 0 10px">${tasks.length+routines.length+notes.length+dmemos.length}개 찾음</div>`;
   routines.forEach(r=>{const c=cat(r.catId)||{};
     h+=`<div class="rt hit" data-act="openhit" data-kind="routine" data-id="${r.id}"><div class="body"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span><span class="tag">루틴</span>${routineStatus(r)[0]}</div><div class="l1">${hlText(r.title,w)}</div>${memoLines(r.memo).length?`<div class="l2">${memoLines(r.memo).map(x=>hlText(x,w)).join('<br>')}</div>`:''}</div><span class="chev">›</span></div>`;});
   // 날짜별 메모와 할 일은 한데 섞어 최근 날짜부터
-  const dated=notes.map(n=>({d:n.date,c:Infinity,n})).concat(tasks.map(x=>({d:x.date,c:x.created||0,x})));
+  const dated=notes.map(n=>({d:n.date,c:Infinity,n})).concat(dmemos.map(m=>({d:m.d,c:Infinity+1,m}))).concat(tasks.map(x=>({d:x.date,c:x.created||0,x})));
   dated.sort((a,b)=>b.d.localeCompare(a.d)||b.c-a.c);
-  dated.forEach(({n,x})=>{
+  dated.forEach(({n,x,m})=>{
+    if(m){
+      h+=`<div class="rt hit" data-act="openhit" data-kind="dmemo" data-date="${m.d}"><div class="body"><div class="l0"><span class="tag">하루 메모</span>${dlabel(m.d)}</div><div class="l1">${hlText(memoLines(m.note)[0]||'',w)}</div>${memoLines(m.note).length>1?`<div class="l2">${memoLines(m.note).slice(1).map(y=>hlText(y,w)).join('<br>')}</div>`:''}</div><span class="chev">›</span></div>`;
+      return;
+    }
     if(n){const c=cat(n.r.catId)||{};
       h+=`<div class="rt hit" data-act="openhit" data-kind="rnote" data-id="${n.r.id}" data-date="${n.date}"><div class="body"><div class="l0"><span class="chip" style="background:${c.color||'#eee'}">${esc(c.name||'')}</span><span class="tag">루틴</span>${dlabel(n.date)}</div><div class="l1">${hlText(n.r.title,w)}</div><div class="l2">${memoLines(n.note).map(y=>hlText(y,w)).join('<br>')}</div></div><span class="chev">›</span></div>`;}
     else{const c=cat(x.catId)||{};
@@ -604,10 +624,37 @@ function applyRestore(str){
   if(!j||!Array.isArray(j.tasks)||!Array.isArray(j.categories)){toast('사본 형식이 올바르지 않아요');return;}
   db=j;
   for(const k of ['tasks','routines','categories','reminders'])db[k]=db[k]||[];
-  for(const k of ['routineDone','routineSkip','routineNotes','dayOrder','notified','settings'])db[k]=db[k]||{};
+  for(const k of ['routineDone','routineSkip','routineNotes','dayOrder','notified','settings','dayMemo'])db[k]=db[k]||{};
   db.gone={};db.goneReset=Date.now();   // 지웠던 것까지 되살리고, 다른 기기의 삭제 기록이 다시 지우지 못하게
   db.settings.cloudSnapDay='';
   save();state.view='home';state.snaps=null;render();toast('되살렸어요');
+}
+/* ========== 하루 메모 (날짜마다 자유롭게 적는 큰 메모장) ========== */
+let memoTimer=null;
+function memoDate(){return state.memoDate||state.date;}
+function saveDayMemo(v){
+  const d=memoDate();
+  if((v||'').trim())db.dayMemo[d]=v;else delete db.dayMemo[d];
+  save();
+  const el=document.getElementById('memosaved');
+  if(el){el.textContent='저장됨';clearTimeout(el._t);el._t=setTimeout(()=>{el.textContent='';},1500);}
+}
+function flushMemo(){
+  const t=document.getElementById('daymemo');
+  if(!t)return;
+  clearTimeout(memoTimer);
+  const d=memoDate();
+  if((t.value||'').trim()!==(db.dayMemo[d]||'').trim()||t.value!==(db.dayMemo[d]||''))saveDayMemo(t.value);
+}
+function goMemo(d){flushMemo();state.memoDate=d;state.date=d;render();}
+function renderMemo(){
+  const d=memoDate();
+  const v=db.dayMemo[d]||'';
+  let h=topbar(kdateShort(d)+' 메모');
+  h+=`<div class="memobar"><button class="pillbtn" data-act="memoprev">‹ 전날</button><button class="pillbtn" data-act="memotoday">오늘</button><button class="pillbtn" data-act="memonext">다음 날 ›</button><span class="saved" id="memosaved"></span></div>`;
+  h+=`<textarea class="bigmemo" id="daymemo" spellcheck="false" placeholder="몇 시에 무엇을 할지 자유롭게 적어 보세요.&#10;&#10;예)&#10;08:40 조회 — 출결 확인&#10;10:00 3반 수업&#10;13:30 회의 자료 뽑기&#10;방과 후 상담 1건">${esc(v)}</textarea>`;
+  h+=`<div class="help">적는 대로 저장돼요. 길이 제한은 없어요.</div>`;
+  return h;
 }
 function renderBackup(){
   let h=topbar('백업');
@@ -912,8 +959,12 @@ app.addEventListener('click',e=>{
   switch(act){
     case 'menu':state.menu=true;state.openedAt=Date.now();render();break;
     case 'closemenu':state.menu=false;render();break;
-    case 'back':state.view='home';render();break;
+    case 'back':if(state.view==='memo')flushMemo();state.view='home';render();break;
     case 'go':state.menu=false;if(el.dataset.view==='addcat')openSheet({type:'cat'});else{state.view=el.dataset.view;render();}break;
+    case 'daymemo':state.memoDate=state.date;state.view='memo';render();break;
+    case 'memoprev':goMemo(addDays(memoDate(),-1));break;
+    case 'memonext':goMemo(addDays(memoDate(),1));break;
+    case 'memotoday':goMemo(today());break;
     case 'today':state.date=today();render();break;
     case 'prevweek':state.date=addDays(state.date,-7);render();break;
     case 'nextweek':state.date=addDays(state.date,7);render();break;
@@ -1007,6 +1058,7 @@ app.addEventListener('click',e=>{
     case 'search':state.view='search';render();{const q=$('q');if(q)setTimeout(()=>q.focus(),50);}break;
     case 'openhit':{
       if(el.dataset.kind==='task'){const t=db.tasks.find(x=>x.id===id);if(!t)return;state.date=t.date;state.view='home';openSheet({type:'task',id});}
+      else if(el.dataset.kind==='dmemo'){state.date=el.dataset.date;state.memoDate=el.dataset.date;state.view='memo';render();}
       else if(el.dataset.kind==='rnote'){state.date=el.dataset.date;state.view='home';openSheet({type:'rday',id,date:el.dataset.date});}
       else{state.view='routines';openSheet({type:'routine',id});}
       break;}
@@ -1032,7 +1084,10 @@ app.addEventListener('change',e=>{
   const k=e.target.dataset&&e.target.dataset.calpick;if(!k)return;
   db.settings.calInclude=Object.assign(calPick(),{[k]:e.target.checked});save();render();
 });
-app.addEventListener('input',e=>{if(e.target.id==='q'){state.q=e.target.value;const r=$('results');if(r)r.innerHTML=renderResults();}});
+app.addEventListener('input',e=>{
+  if(e.target.id==='q'){state.q=e.target.value;const r=$('results');if(r)r.innerHTML=renderResults();}
+  if(e.target.id==='daymemo'){const v=e.target.value;clearTimeout(memoTimer);memoTimer=setTimeout(()=>saveDayMemo(v),700);}
+});
 app.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&e.target.classList.contains('bigname')){e.preventDefault();const b=document.querySelector('.sheet .btn:not(.ghost):not(.danger)');b&&b.click();}
   if(e.key==='Escape'&&state.sheet)closeSheet();
@@ -1327,7 +1382,8 @@ function checkReminders(){
   dailyCloudSnap();
 }
 setInterval(checkReminders,30000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){checkReminders();if(state.view==='home')render();}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){flushMemo();return;}checkReminders();if(state.view==='home')render();});
+window.addEventListener('pagehide',flushMemo);
 window.addEventListener('focus',checkReminders);
 
 render();
