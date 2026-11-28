@@ -236,9 +236,9 @@ mark{background:var(--yellow);color:var(--ink);padding:0 2px;border-radius:3px}
 .fab:active{transform:translate(3px,3px);box-shadow:none}
 @media (min-width:600px){.fab{right:calc(50% - 260px + 16px)}}
 #app.wide{max-width:1000px}
-.memowrap{display:flex;gap:14px;align-items:flex-start}
-.memowrap .bigmemo{flex:1;min-width:0}
-.memoside{flex:0 0 290px;max-height:68vh;overflow:auto;background:var(--paper);border:var(--bw) solid var(--ink);box-shadow:var(--sh);border-radius:var(--r);padding:12px}
+.memowrap{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.memowrap .bigmemo{flex:4 1 300px;min-width:0}
+.memoside{flex:1 1 220px;max-width:340px;max-height:68vh;overflow:auto;background:var(--paper);border:var(--bw) solid var(--ink);box-shadow:var(--sh);border-radius:var(--r);padding:12px}
 .memoside .ms-head{font-weight:800;font-size:14px;margin-bottom:6px;display:flex;align-items:center;gap:6px}
 .memoside .ms-n{background:var(--yellow);border:2px solid var(--ink);border-radius:999px;padding:0 8px;font-size:12px}
 .ms-item{display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-top:1.5px dashed #e3d9bf}
@@ -250,7 +250,7 @@ mark{background:var(--yellow);color:var(--ink);padding:0 2px;border-radius:3px}
 .ms-item.done .ms-t{color:var(--muted2);text-decoration:line-through}
 .ms-item .chip{font-size:11px;padding:1px 7px;vertical-align:1px}
 .ms-item .tag{margin-left:4px}
-@media (max-width:820px){.memowrap{flex-direction:column}.memoside{flex:none;width:100%;max-height:36vh}}
+@media (max-width:640px){.memoside{max-width:none;max-height:36vh}}
 .daymemo{display:block;width:100%;text-align:left;background:var(--paper);border:var(--bw) solid var(--ink);box-shadow:var(--sh);border-radius:var(--r);padding:12px 14px;margin:2px 3px 14px 0}
 .daymemo.has{background:#fffbe8}
 .daymemo .dm-head{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px}
